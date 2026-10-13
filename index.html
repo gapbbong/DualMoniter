@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIM PRO | 통합 관리 대시보드</title>
+    <link rel="stylesheet" href="/static/index.css?v=5.5">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/static/html2canvas.min.js"></script>
+</head>
+<body>
+    <main class="main-layout">
+        <!-- 좌측 세로 제어 패널 -->
+        <aside class="left-control-bar">
+            <div class="ctrl-header">
+                <div class="ctrl-brand"><i class="fas fa-desktop"></i> CIM PRO</div>
+                <div class="ctrl-status-badge">
+                    <span class="pulse-dot"></span>
+                    <b id="activeCount">0 / 24</b>
+                </div>
+            </div>
+
+            <div class="ctrl-section-label" id="lblCtrlSection">전체 제어</div>
+            <div class="ctrl-multi-tip" id="ctrlMultiTip" title="키보드 Ctrl 키를 누른 채 학생 화면을 클릭하면 여러 대를 선택하여 일괄 제어할 수 있습니다.">
+                <i class="fas fa-mouse-pointer"></i><span>다중제어: Ctrl+클릭</span>
+            </div>
+            <!-- 다중 선택 시 표시되는 세련된 선택됨 뱃지 -->
+            <div class="ctrl-selection-badge" id="ctrlSelectionBadge" style="display: none;" onclick="clearSelection()" title="클릭 시 선택 해제 (단축키: ESC)">
+                <div class="sel-info">
+                    <i class="fas fa-check-circle sel-icon"></i>
+                    <span class="sel-count" id="panelSelectedCount">0대</span>
+                    <span class="sel-word">선택됨</span>
+                </div>
+            </div>
+            <div class="ctrl-btn-list">
+                <button class="ctrl-btn btn-lock" id="btnAllLock" onclick="handleLockClick()" title="모든 학생 PC 화면 잠금 / 풀기">
+                    <i class="fas fa-lock" id="iconAllLock"></i>
+                    <span id="txtAllLock">전체 화면 잠금</span>
+                </button>
+                <button class="ctrl-btn btn-danger" id="btnInternet" onclick="handleInternetClick()" title="학생 인터넷 차단/허용 토글">
+                    <i class="fas fa-wifi-slash" id="iconInternet"></i>
+                    <span id="txtInternet">인터넷 차단</span>
+                </button>
+            </div>
+
+            <div class="ctrl-section-label">화면 캡처</div>
+            <div class="ctrl-btn-list">
+                <button class="ctrl-btn btn-capture" id="btnCapture" onclick="captureDashboard()" title="대시보드 전체 화면 캡처 저장 (단축키: C)">
+                    <i class="fas fa-camera"></i>
+                    <span>화면 캡처 <small style="font-size:0.68rem; opacity:0.85;">(C)</small></span>
+                </button>
+            </div>
+
+            <div class="ctrl-section-label">전원 제어</div>
+            <div class="ctrl-btn-list">
+                <button class="ctrl-btn btn-warn" id="btnAllRestart" onclick="handleRestartClick()" title="모든 학생 PC 재부팅">
+                    <i class="fas fa-redo"></i>
+                    <span id="txtAllRestart">전체 재부팅</span>
+                </button>
+                <button class="ctrl-btn btn-power-off" id="btnAllShutdown" onclick="handleShutdownClick()" title="모든 학생 PC 끄기">
+                    <i class="fas fa-desktop"></i>
+                    <span id="txtAllShutdown">전체 종료</span>
+                </button>
+            </div>
+
+            <div class="ctrl-bottom-info">
+                <div class="ctrl-clock-widget" title="현재 날짜 및 시간">
+                    <div class="clock-date" id="panelClockDate">2026-09-15</div>
+                    <div class="clock-time" id="panelClockTime">00:00:00</div>
+                </div>
+                <span class="ctrl-ip-tag"><i class="fas fa-network-wired"></i> <b id="serverIp">10.128.56.41</b></span>
+            </div>
+        </aside>
+
+        <section class="monitor-container">
+            <div class="monitor-grid" id="monitorGrid">
+                <!-- 클라이언트 카드 자동 생성 -->
+            </div>
+        </section>
+
+        <!-- 우측 세로형 슬라이딩 패널 (기본 접힘) -->
+        <aside class="sidebar-panel collapsed" id="footerPanel">
+            <!-- 패널 핸들 (항상 보임) -->
+            <div class="panel-handle" onclick="togglePanel()">
+                <div class="handle-title">
+                    <i class="fas fa-chevron-left" id="toggleIcon"></i>
+                    <span class="vertical-text">시스템 상태 및 로그</span>
+                </div>
+            </div>
+
+            <div class="panel-content">
+                <div class="handle-actions">
+                    <button class="btn btn-success btn-sm" onclick="sendCommand('all', 'verify_step5')">
+                        <i class="fas fa-check-double"></i> 5단계 확인
+                    </button>
+                    <div style="height: 20px;"></div>
+                    <span>서버: <b id="serverIpRight">10.128.56.191</b></span>
+                    <span>접속: <b id="activeCountRight">0/24</b></span>
+                </div>
+
+                <div class="panel-card" style="flex: 1;">
+                    <h3><i class="fas fa-desktop"></i> 모니터링</h3>
+                    <div id="clientDetail">
+                        <p style="font-size: 0.7rem;">PC 선택</p>
+                    </div>
+                </div>
+
+                <div class="panel-card" style="flex: 1;">
+                    <h3><i class="fas fa-ban"></i> 프로세스 차단 목록</h3>
+                    <textarea id="blocklistInput" style="width:100%; height:50px; font-size:0.7rem;" placeholder="예: game.exe, kakaotalk.exe (쉼표로 구분)"></textarea>
+                    <button class="btn btn-sm" onclick="saveBlocklist()">저장</button>
+                </div>
+
+                <div class="panel-card" style="flex: 2;">
+                    <h3><i class="fas fa-terminal"></i> 로그</h3>
+                    <div id="logConsole">
+                        <div class="log-entry">준비 완료</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Fullscreen Image Modal Overlay -->
+    <div id="imageModal" class="modal-overlay" onclick="if(event.target === this) closeModal();" tabindex="-1">
+        <!-- 좌측 닫기 버튼 -->
+        <button class="modal-close-btn modal-close-left" onclick="closeModal()" title="창 닫기 (ESC)">
+            <i class="fas fa-times"></i>
+            <span>닫기</span>
+        </button>
+
+        <!-- 우측 닫기 버튼 -->
+        <button class="modal-close-btn modal-close-right" onclick="closeModal()" title="창 닫기 (ESC)">
+            <i class="fas fa-times"></i>
+            <span>닫기</span>
+        </button>
+
+        <div class="modal-content">
+            <div class="modal-main-view">
+                <div id="modalControls" class="modal-controls">
+                    <button class="btn btn-sm btn-success" id="modalBtnRemote" onclick="toggleRemoteControl()"><i class="fas fa-gamepad"></i> 원격 제어 켜기</button>
+                    <button class="btn btn-sm" id="modalBtnLock" onclick="toggleSingleLock()"><i class="fas fa-lock"></i> 화면 잠금</button>
+                    <button class="btn btn-sm btn-danger" onclick="if(confirm(remoteBaseId+' 재부팅하시겠습니까?')) sendCommand(remoteBaseId,'restart')">재부팅</button>
+                    <button class="btn btn-sm btn-danger" onclick="if(confirm(remoteBaseId+' 종료하시겠습니까?')) sendCommand(remoteBaseId,'shutdown')">종료</button>
+                    <button class="btn btn-sm btn-primary" id="btnToggleTimeline" onclick="toggleTimelineSidebar()" title="사용 기록 창 접기/펼치기"><i class="fas fa-columns"></i> 기록창 토글</button>
+                </div>
+                <img id="modalImg" src="" alt="Fullscreen Monitor">
+                <div id="modalTitle" class="modal-title"></div>
+            </div>
+
+            <!-- 우측 실시간 사용 기록 타임라인 패널 -->
+            <aside class="modal-timeline-sidebar" id="modalTimelineSidebar">
+                <div class="timeline-header">
+                    <div class="timeline-header-top">
+                        <h3><i class="fas fa-history"></i> 실시간 사용 기록</h3>
+                        <button class="btn btn-sm" onclick="loadTimeline(remoteBaseId)" title="새로고침" style="background: rgba(255,255,255,0.1); padding: 2px 7px;">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    <div class="timeline-meta" id="timelineMeta">
+                        <span class="meta-tag" id="metaBootTime">부팅: -</span>
+                        <span class="meta-tag" id="metaTotalRecords">기록: 0건</span>
+                        <span class="meta-tag online" id="metaOnlineStatus">온라인</span>
+                    </div>
+                </div>
+                <div class="timeline-list" id="timelineList">
+                    <div class="timeline-empty"><i class="fas fa-spinner fa-spin"></i> 사용 기록을 불러오는 중...</div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <script>
+        const grid = document.getElementById('monitorGrid');
+        const serverIpEl = document.getElementById('serverIp');
+        if (serverIpEl) { serverIpEl.innerText = window.location.hostname; }
+        const activeCount = document.getElementById('activeCount');
+        
+        let roomPrefix = "203"; // 기본값 203으로 대시보드 먼저 렌더링
+        let studentNames = {};  // 엑셀에서 파싱된 학생 이름 목록
+        let lastVersions = {};  // 클라이언트별 마지막 로드된 화면 버전
+        let selectedStudents = new Set(); // 다중 선택된 학생 baseId 집합
+        let studentLockState = {}; // baseId -> boolean (true: locked, false: unlocked)
+
+        // 꺼져 있는(오프라인) PC는 검은 화면으로 표시
+        const BLACK_SCREEN = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='320'%20height='180'%3E%3Crect%20width='100%25'%20height='100%25'%20fill='black'/%3E%3C/svg%3E";
+
+        function renderGrid(prefix) {
+            grid.innerHTML = '';
+            for (let row = 0; row < 6; row++) {
+                for (let col = 0; col < 4; col++) {
+                    const colFromRight = 3 - col; // 오른쪽부터 1~6, 7~12, 13~18, 19~24 순서
+                    const i = (colFromRight * 6) + (row + 1);
+                    const baseId = `${prefix}-${String(i).padStart(2, '0')}`;
+                    const name = studentNames[baseId] ? ` ${studentNames[baseId]}` : '';
+                    const group = document.createElement('div');
+                    group.className = 'pc-group';
+                    group.id = `group-${baseId}`;
+                    
+                    [2, 1].forEach(suffix => {
+                        const clientId = `${baseId}-${suffix}`;
+                        const card = document.createElement('div');
+                        card.className = 'client-card';
+                        card.id = `card-${clientId}`;
+                        card.innerHTML = `
+                            <div class="screen-thumb">
+                                <img id="img-${clientId}" src="/screenshots/screen_${clientId}.jpg" onerror="this.src=BLACK_SCREEN;">
+                            </div>
+                            <div class="card-footer" style="padding: 2px 4px;">
+                                <div class="client-id" style="display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 4px; overflow: hidden;">
+                                    <div style="display: flex; align-items: center; gap: 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; flex: 1;">
+                                        <span class="status-dot" id="dot-${clientId}" style="width: 6px; height: 6px; flex-shrink: 0;"></span>
+                                        <span style="font-size: 0.75rem; font-weight: bold; flex-shrink: 0;">${baseId}${name} (${suffix === 2 ? '좌' : '우'})</span>
+                                        <span id="title-${clientId}" class="active-window-title" style="font-size: 0.65rem; color: #38bdf8; font-weight: normal; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: right; opacity: 0.85;"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        card.onclick = (e) => handleCardClick(e, clientId);
+                        group.appendChild(card);
+                    });
+                    group.onclick = (e) => {
+                        if (e.target === group && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleStudentSelection(baseId);
+                        }
+                    };
+                    if (selectedStudents.has(baseId)) {
+                        group.classList.add('selected');
+                    }
+                    grid.appendChild(group);
+                }
+            }
+        }
+
+        // 초기 격자 로드
+        renderGrid(roomPrefix);
+
+        // 서버에서 동적 접두사(예: 교사용 호스트명에서 파싱한 방번호) 및 학생 이름 가져오기
+        async function fetchConfig() {
+            try {
+                const res = await fetch('/get_config');
+                const config = await res.json();
+                studentNames = config.names || {};
+                
+                let needReRender = false;
+                if (config.prefix && config.prefix !== roomPrefix) {
+                    roomPrefix = config.prefix;
+                    needReRender = true;
+                }
+                
+                // 이름 데이터가 로드되었으므로 다시 격자를 그려 이름 반영
+                renderGrid(roomPrefix);
+            } catch (e) {
+                console.error("Failed to load config", e);
+            }
+        }
+        fetchConfig();
+
+        // 실시간 상태 및 카드 동적 생성/갱신 로직
+        async function updateStatus() {
+            try {
+                const res = await fetch('/get_status');
+                const status = await res.json();
+                let onlineCount = 0;
+
+                // 1. 먼저 화면에 있는 모든 카드 중 '-1', '-2'가 없는 가짜들을 삭제
+                document.querySelectorAll('.client-card').forEach(card => {
+                    const id = card.id.replace('card-', '');
+                    if (!id.includes('-1') && !id.includes('-2')) {
+                        card.remove();
+                    }
+                });
+
+                // 2. 서버 데이터를 돌면서 상태 업데이트
+                for (const [clientId, info] of Object.entries(status)) {
+                    if (!clientId.includes('-1') && !clientId.includes('-2')) continue;
+
+                    let card = document.getElementById(`card-${clientId}`);
+                    let img = document.getElementById(`img-${clientId}`);
+                    let dot = document.getElementById(`dot-${clientId}`);
+
+                    // 카드가 없으면 새로 생성 (목록 외 새로운 ID 접속 시)
+                    if (!card) {
+                        const baseId = clientId.split('-').slice(0, 2).join('-');
+                        const name = studentNames[baseId] ? ` ${studentNames[baseId]}` : '';
+                        const newCard = document.createElement('div');
+                        newCard.className = 'client-card';
+                        newCard.id = `card-${clientId}`;
+                        newCard.innerHTML = `
+                            <div class="screen-thumb">
+                                <img id="img-${clientId}" src="/screenshots/screen_${clientId}.jpg" onerror="this.src=BLACK_SCREEN;">
+                            </div>
+                            <div class="card-footer" style="padding: 2px 4px;">
+                                <div class="client-id" style="display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 4px; overflow: hidden;">
+                                    <div style="display: flex; align-items: center; gap: 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; flex: 1;">
+                                        <span class="status-dot" id="dot-${clientId}" style="width: 6px; height: 6px; flex-shrink: 0;"></span>
+                                        <span style="font-size: 0.75rem; font-weight: bold; flex-shrink: 0;">${baseId}${name} (${clientId.endsWith('-2') ? '좌' : '우'})</span>
+                                        <span id="title-${clientId}" class="active-window-title" style="font-size: 0.65rem; color: #38bdf8; font-weight: normal; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: right; opacity: 0.85;"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        newCard.onclick = (e) => handleCardClick(e, clientId);
+                        grid.appendChild(newCard);
+                        
+                        img = document.getElementById(`img-${clientId}`);
+                        dot = document.getElementById(`dot-${clientId}`);
+                    }
+
+                    if (info && info.online) {
+                        onlineCount++;
+                        if (dot) dot.classList.add('online');
+
+                        const currentVersion = info.time || "";
+                        if (currentVersion && lastVersions[clientId] !== currentVersion) {
+                            lastVersions[clientId] = currentVersion;
+                            const newUrl = `/screenshots/screen_${clientId}.jpg?t=${encodeURIComponent(currentVersion)}`;
+                            const preloader = new Image();
+                            preloader.onload = () => {
+                                if (img) img.src = newUrl;
+                            };
+                            preloader.src = newUrl;
+                        }
+                        
+                        const titleEl = document.getElementById(`title-${clientId}`);
+                        if (titleEl && titleEl.innerText !== (info.title || "")) {
+                            titleEl.innerText = info.title || "";
+                            titleEl.title = info.title || "";
+                        }
+                    } else {
+                        if (dot) dot.classList.remove('online');
+                        if (img && !img.src.startsWith("data:")) {
+                            img.src = BLACK_SCREEN;
+                        }
+                        delete lastVersions[clientId];
+                        const titleEl = document.getElementById(`title-${clientId}`);
+                        if (titleEl && titleEl.innerText !== "") {
+                            titleEl.innerText = "";
+                            titleEl.title = "";
+                        }
+                    }
+                }
+                // PC 대수 기준 (카드 절반)으로 표시
+                activeCount.innerText = `${Math.ceil(onlineCount / 2)} / 24`;
+            } catch (e) {
+                console.error("Status update failed", e);
+            }
+        }
+
+        // 로그 업데이트 로직
+        async function updateLogs() {
+            try {
+                const res = await fetch('/get_logs');
+                const logs = await res.json();
+                const logConsole = document.getElementById('logConsole');
+                logConsole.innerHTML = logs.map(entry => {
+                    const match = entry.match(/\[(.*?)\] \[(.*?)\] (.*)/);
+                    if (match) {
+                        return `<div class="log-entry"><b>[${match[2]}]</b> ${match[3]} <small style="float:right; opacity:0.5;">${match[1]}</small></div>`;
+                    }
+                    return `<div class="log-entry">${entry}</div>`;
+                }).join('');
+            } catch (e) {}
+        }
+
+        // 다중 선택 상태 처리
+        function handleCardClick(e, clientId) {
+            const baseId = clientId.split('-').slice(0, 2).join('-');
+
+            // Ctrl 키(또는 Mac Command 키)를 누른 상태에서 클릭 시 다중 선택 토글
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleStudentSelection(baseId);
+                return;
+            }
+
+            // 일반 클릭: 기존과 동일하게 상세 확대 화면 열기
+            showDetail(clientId);
+        }
+
+        function toggleStudentSelection(baseId) {
+            if (selectedStudents.has(baseId)) {
+                selectedStudents.delete(baseId);
+            } else {
+                selectedStudents.add(baseId);
+            }
+            updateSelectionUI();
+        }
+
+        function clearSelection() {
+            selectedStudents.clear();
+            updateSelectionUI();
+        }
+
+        function updateSelectionUI() {
+            // 1. 모든 PC 카드에 선택 하이라이트 클래스 적용/해제
+            document.querySelectorAll('.pc-group').forEach(group => {
+                const bId = group.id.replace('group-', '');
+                if (selectedStudents.has(bId)) {
+                    group.classList.add('selected');
+                } else {
+                    group.classList.remove('selected');
+                }
+            });
+
+            // 2. 좌측 제어 패널 상단 "N대 선택됨" 뱃지 표시/숨김
+            const tipEl = document.getElementById('ctrlMultiTip');
+            const badgeEl = document.getElementById('ctrlSelectionBadge');
+            const countEl = document.getElementById('panelSelectedCount');
+            if (selectedStudents.size > 0) {
+                if (tipEl) tipEl.style.display = 'none';
+                if (badgeEl) badgeEl.style.display = 'flex';
+                if (countEl) countEl.innerText = `${selectedStudents.size}대`;
+            } else {
+                if (tipEl) tipEl.style.display = 'flex';
+                if (badgeEl) badgeEl.style.display = 'none';
+            }
+
+            // 3. 좌측 제어 패널 버튼 문구 동적 갱신 (전체 <-> N대)
+            updatePanelControlButtons();
+        }
+
+        function updatePanelControlButtons() {
+            const count = selectedStudents.size;
+            const prefix = count > 0 ? `${count}대` : '전체';
+
+            // 섹션 레이블 갱신
+            const lblSection = document.getElementById('lblCtrlSection');
+            if (lblSection) {
+                lblSection.innerText = count > 0 ? `${count}대 제어` : '전체 제어';
+            }
+
+            const btnLock = document.getElementById('btnAllLock');
+            const iconLock = document.getElementById('iconAllLock');
+            const txtLock = document.getElementById('txtAllLock');
+
+            const btnNet = document.getElementById('btnInternet');
+            const iconNet = document.getElementById('iconInternet');
+            const txtNet = document.getElementById('txtInternet');
+
+            const btnRestart = document.getElementById('btnAllRestart');
+            const txtRestart = document.getElementById('txtAllRestart');
+
+            const btnShutdown = document.getElementById('btnAllShutdown');
+            const txtShutdown = document.getElementById('txtAllShutdown');
+
+            if (count > 0) {
+                // 다중 선택 상태
+                const targets = Array.from(selectedStudents);
+                const allSelectedLocked = targets.every(id => !!studentLockState[id]);
+
+                if (allSelectedLocked) {
+                    if (iconLock) iconLock.className = 'fas fa-unlock';
+                    if (txtLock) txtLock.innerText = `${prefix} 화면 풀기`;
+                    if (btnLock) {
+                        btnLock.className = 'ctrl-btn btn-unlock';
+                        btnLock.title = `선택된 ${count}대 학생 PC 화면 풀기`;
+                    }
+                } else {
+                    if (iconLock) iconLock.className = 'fas fa-lock';
+                    if (txtLock) txtLock.innerText = `${prefix} 화면 잠금`;
+                    if (btnLock) {
+                        btnLock.className = 'ctrl-btn btn-lock';
+                        btnLock.title = `선택된 ${count}대 학생 PC 화면 잠금`;
+                    }
+                }
+
+                // 인터넷 차단/허용 버튼
+                if (txtNet) txtNet.innerText = internetBlocked ? `${prefix} 인터넷 허용` : `${prefix} 인터넷 차단`;
+                if (iconNet) iconNet.className = internetBlocked ? 'fas fa-wifi' : 'fas fa-wifi-slash';
+                if (btnNet) {
+                    btnNet.className = internetBlocked ? 'ctrl-btn btn-success' : 'ctrl-btn btn-danger';
+                    btnNet.title = internetBlocked ? `선택된 ${count}대 학생 PC 인터넷 허용` : `선택된 ${count}대 학생 PC 인터넷 차단`;
+                }
+
+                if (txtRestart) txtRestart.innerText = `${prefix} 재부팅`;
+                if (btnRestart) btnRestart.title = `선택된 ${count}대 학생 PC 재부팅`;
+
+                if (txtShutdown) txtShutdown.innerText = `${prefix} 종료`;
+                if (btnShutdown) btnShutdown.title = `선택된 ${count}대 학생 PC 끄기`;
+            } else {
+                // 전체 제어 상태
+                if (allScreenLocked) {
+                    if (iconLock) iconLock.className = 'fas fa-unlock';
+                    if (txtLock) txtLock.innerText = '전체 화면 풀기';
+                    if (btnLock) {
+                        btnLock.className = 'ctrl-btn btn-unlock';
+                        btnLock.title = '모든 학생 PC 화면 풀기';
+                    }
+                } else {
+                    if (iconLock) iconLock.className = 'fas fa-lock';
+                    if (txtLock) txtLock.innerText = '전체 화면 잠금';
+                    if (btnLock) {
+                        btnLock.className = 'ctrl-btn btn-lock';
+                        btnLock.title = '모든 학생 PC 화면 잠금';
+                    }
+                }
+
+                // 인터넷 차단/허용 버튼
+                if (txtNet) txtNet.innerText = internetBlocked ? '인터넷 허용' : '인터넷 차단';
+                if (iconNet) iconNet.className = internetBlocked ? 'fas fa-wifi' : 'fas fa-wifi-slash';
+                if (btnNet) {
+                    btnNet.className = internetBlocked ? 'ctrl-btn btn-success' : 'ctrl-btn btn-danger';
+                    btnNet.title = internetBlocked ? '모든 학생 PC 인터넷 허용' : '모든 학생 PC 인터넷 차단';
+                }
+
+                if (txtRestart) txtRestart.innerText = '전체 재부팅';
+                if (btnRestart) btnRestart.title = '모든 학생 PC 재부팅';
+
+                if (txtShutdown) txtShutdown.innerText = '전체 종료';
+                if (btnShutdown) btnShutdown.title = '모든 학생 PC 끄기';
+            }
+        }
+
+        async function handleLockClick() {
+            if (selectedStudents.size > 0) {
+                const targets = Array.from(selectedStudents);
+                const allSelectedLocked = targets.every(id => !!studentLockState[id]);
+                const nextCmd = allSelectedLocked ? 'unlock' : 'lock';
+                await multiAction(nextCmd);
+                updatePanelControlButtons();
+            } else {
+                await toggleAllLock();
+            }
+        }
+
+        async function handleInternetClick() {
+            const count = selectedStudents.size;
+            if (count > 0) {
+                internetBlocked = !internetBlocked;
+                const command = internetBlocked ? 'internet_off' : 'internet_on';
+                await multiAction(command);
+                updatePanelControlButtons();
+            } else {
+                await toggleInternet();
+            }
+        }
+
+        async function handleRestartClick() {
+            const count = selectedStudents.size;
+            if (count > 0) {
+                if (confirm(`선택된 ${count}대 학생 PC를 재부팅하시겠습니까?`)) {
+                    await multiAction('restart');
+                }
+            } else {
+                if (confirm('모든 학생 PC를 재부팅하시겠습니까?')) {
+                    await sendCommand('all', 'restart');
+                }
+            }
+        }
+
+        async function handleShutdownClick() {
+            const count = selectedStudents.size;
+            if (count > 0) {
+                if (confirm(`선택된 ${count}대 학생 PC를 종료하시겠습니까?`)) {
+                    await multiAction('shutdown');
+                }
+            } else {
+                if (confirm('모든 학생 PC를 종료하시겠습니까?')) {
+                    await sendCommand('all', 'shutdown');
+                }
+            }
+        }
+
+        async function multiAction(command) {
+            if (selectedStudents.size === 0) return;
+            const targets = Array.from(selectedStudents);
+
+            // 상태 업데이트 동기화
+            if (command === 'lock') {
+                targets.forEach(bId => studentLockState[bId] = true);
+            } else if (command === 'unlock') {
+                targets.forEach(bId => studentLockState[bId] = false);
+            }
+
+            // 선택된 학생들에게 일괄 비동기 명령 전송
+            await Promise.all(targets.map(id => sendCommand(id, command)));
+            updatePanelControlButtons();
+        }
+
+        // 원격 제어 상태
+        let remoteControlEnabled = false;
+        let remoteBaseId = null;
+        let remoteMonitorIndex = 1;
+
+        function showDetail(clientId) {
+            const baseId = clientId.split('-').slice(0, 2).join('-');
+            const name = studentNames[baseId] ? ` ${studentNames[baseId]}` : '';
+
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modalImg');
+            const modalTitle = document.getElementById('modalTitle');
+
+            modalImg.src = `/screenshots/screen_${clientId}.jpg?t=${new Date().getTime()}`;
+
+            const titleEl = document.getElementById(`title-${clientId}`);
+            const winTitle = titleEl ? titleEl.innerText : "";
+            modalTitle.innerText = `${baseId}${name} (${clientId.endsWith('-2') ? '좌' : '우'}) ${winTitle ? ` - [활성창: ${winTitle}]` : ''}`;
+            modal.style.display = 'flex';
+            try { modal.focus(); } catch (e) {}
+
+            remoteBaseId = baseId;
+            remoteMonitorIndex = clientId.endsWith('-2') ? 2 : 1;
+            updateModalLockBtn(!!studentLockState[baseId]);
+
+            renderControls(baseId);
+            refreshProcessList(baseId);
+
+            // 우측 실시간 사용 기록 타임라인 즉시 로드 및 2초 주기 자동 갱신
+            loadTimeline(baseId);
+            if (window.timelineInterval) clearInterval(window.timelineInterval);
+            window.timelineInterval = setInterval(() => {
+                const m = document.getElementById('imageModal');
+                if (m && m.style.display === 'flex' && remoteBaseId) {
+                    loadTimeline(remoteBaseId);
+                }
+            }, 2000);
+
+            if(window.detailInterval) clearInterval(window.detailInterval);
+            let lastModalVersion = "";
+            window.detailInterval = setInterval(() => {
+                if(modal.style.display === 'flex') {
+                    const currentV = lastVersions[clientId] || new Date().getTime();
+                    if (currentV !== lastModalVersion) {
+                        lastModalVersion = currentV;
+                        const nextSrc = `/screenshots/screen_${clientId}.jpg?t=${encodeURIComponent(currentV)}`;
+                        const pImg = new Image();
+                        pImg.onload = () => {
+                            if (modal.style.display === 'flex') modalImg.src = nextSrc;
+                        };
+                        pImg.src = nextSrc;
+                    }
+
+                    const tEl = document.getElementById(`title-${clientId}`);
+                    const wTitle = tEl ? tEl.innerText : "";
+                    const newTitle = `${baseId}${name} (${clientId.endsWith('-2') ? '좌' : '우'}) ${wTitle ? ` - [활성창: ${wTitle}]` : ''}`;
+                    if (modalTitle.innerText !== newTitle) {
+                        modalTitle.innerText = newTitle;
+                    }
+                }
+            }, 300);
+        }
+
+        function closeModal() {
+            document.getElementById('imageModal').style.display = 'none';
+            remoteControlEnabled = false;
+            ['btnRemote', 'modalBtnRemote'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) { btn.innerHTML = (id === 'modalBtnRemote' ? '<i class="fas fa-gamepad"></i> ' : '') + '원격 제어 켜기'; btn.className = 'btn btn-success btn-sm'; }
+            });
+            if(window.detailInterval) {
+                clearInterval(window.detailInterval);
+                window.detailInterval = null;
+            }
+            if(window.timelineInterval) {
+                clearInterval(window.timelineInterval);
+                window.timelineInterval = null;
+            }
+        }
+
+        // 우측 타임라인 사이드바 접기/펼치기
+        function toggleTimelineSidebar() {
+            const sidebar = document.getElementById('modalTimelineSidebar');
+            if (sidebar) {
+                sidebar.classList.toggle('collapsed');
+            }
+        }
+
+        // 특정 학생 PC의 전체 사용기록 타임라인 가져오기
+        async function loadTimeline(baseId) {
+            if (!baseId) return;
+            try {
+                const res = await fetch(`/get_timeline/${baseId}?t=${new Date().getTime()}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                renderTimeline(data);
+            } catch (e) {
+                console.error("Failed to load timeline:", e);
+            }
+        }
+
+        // 타임라인 리스트 HTML 렌더링
+        function renderTimeline(data) {
+            const listEl = document.getElementById('timelineList');
+            const bootEl = document.getElementById('metaBootTime');
+            const countEl = document.getElementById('metaTotalRecords');
+            const onlineEl = document.getElementById('metaOnlineStatus');
+
+            if (bootEl) bootEl.innerText = `부팅: ${data.boot_time || '-'}`;
+            if (countEl) countEl.innerText = `기록: ${data.total_records || 0}건`;
+            if (onlineEl) {
+                onlineEl.innerText = data.is_online ? '온라인' : '오프라인';
+                onlineEl.className = data.is_online ? 'meta-tag online' : 'meta-tag';
+            }
+
+            if (!listEl) return;
+
+            const timeline = data.timeline || [];
+            if (timeline.length === 0) {
+                listEl.innerHTML = `
+                    <div class="timeline-empty">
+                        <i class="fas fa-info-circle" style="font-size: 1.5rem; margin-bottom: 8px; color: #64748b;"></i>
+                        <div>아직 수집된 사용 기록이 없습니다.</div>
+                        <small style="color: #475569; display: block; margin-top: 4px;">화면 활동 또는 창 전환 시 자동으로 누적됩니다.</small>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            timeline.forEach((item, index) => {
+                const isCurrent = !!item.is_current;
+                const isIdle = !!item.is_idle;
+                const timeRange = `${item.start_time} ~ ${item.end_time}`;
+                const duration = item.duration_str || `${item.duration_sec || 0}초`;
+                const rawTitle = item.title || '';
+
+                // 아이콘 및 제목 결정
+                let iconClass = 'fas fa-window-maximize';
+                let displayTitle = rawTitle;
+
+                if (isIdle) {
+                    iconClass = 'fas fa-user-clock';
+                    displayTitle = '아무 반응 없음 (1분 이상 무반응)';
+                } else if (rawTitle.includes('Chrome') || rawTitle.includes('Edge') || rawTitle.includes('Whale') || rawTitle.includes('웨일') || rawTitle.includes('인터넷')) {
+                    iconClass = 'fab fa-chrome';
+                } else if (rawTitle.includes('한글') || rawTitle.includes('HWP') || rawTitle.includes('워드') || rawTitle.includes('문서')) {
+                    iconClass = 'fas fa-file-alt';
+                } else if (rawTitle.includes('탐색기') || rawTitle.includes('폴더') || rawTitle.includes('바탕화면')) {
+                    iconClass = 'fas fa-folder-open';
+                } else if (rawTitle.includes('카카오') || rawTitle.includes('메신저')) {
+                    iconClass = 'fas fa-comments';
+                }
+
+                // 카드 클래스
+                let itemClass = 'timeline-item';
+                if (isCurrent) itemClass += ' active-item';
+                if (isIdle) itemClass += ' idle-item';
+
+                html += `
+                    <div class="${itemClass}">
+                        <div class="timeline-time-row">
+                            <span>
+                                ${isCurrent ? '<span style="color: #38bdf8; font-weight:800; margin-right:4px;">● 현재</span>' : ''}
+                                <i class="far fa-clock"></i> ${timeRange}
+                            </span>
+                            <span class="timeline-badge-duration">${duration}</span>
+                        </div>
+                        <div class="timeline-title-row">
+                            <i class="${iconClass}"></i>
+                            <span>${escapeHtml(displayTitle)}</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            listEl.innerHTML = html;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;')
+                      .replace(/</g, '&lt;')
+                      .replace(/>/g, '&gt;')
+                      .replace(/"/g, '&quot;')
+                      .replace(/'/g, '&#039;');
+        }
+
+        function toggleRemoteControl() {
+            remoteControlEnabled = !remoteControlEnabled;
+            const label = remoteControlEnabled ? '원격 제어 끄기' : '<i class="fas fa-gamepad"></i> 원격 제어 켜기';
+            const cls = remoteControlEnabled ? 'btn btn-danger btn-sm' : 'btn btn-success btn-sm';
+            ['btnRemote', 'modalBtnRemote'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) { btn.innerHTML = label; btn.className = cls; }
+            });
+        }
+
+        let isTogglingLock = false;
+
+        async function toggleSingleLock() {
+            if (!remoteBaseId || isTogglingLock) return;
+            isTogglingLock = true;
+
+            const isCurrentlyLocked = !!studentLockState[remoteBaseId];
+            const nextState = !isCurrentlyLocked;
+            studentLockState[remoteBaseId] = nextState;
+
+            const command = nextState ? 'lock' : 'unlock';
+            updateModalLockBtn(nextState);
+            renderControls(remoteBaseId);
+
+            await sendCommand(remoteBaseId, command);
+
+            setTimeout(() => { isTogglingLock = false; }, 400);
+        }
+
+        function updateModalLockBtn(isLocked) {
+            const btn = document.getElementById('modalBtnLock');
+            if (btn) {
+                if (isLocked) {
+                    btn.innerHTML = '<i class="fas fa-unlock"></i> 화면 풀기';
+                    btn.className = 'btn btn-sm btn-success';
+                } else {
+                    btn.innerHTML = '<i class="fas fa-lock"></i> 화면 잠금';
+                    btn.className = 'btn btn-sm btn-warning';
+                }
+            }
+        }
+
+        function renderControls(baseId) {
+            const el = document.getElementById('clientDetail');
+            if (!el) return;
+            const isLocked = !!studentLockState[baseId];
+            const name = studentNames[baseId] ? ` (${studentNames[baseId]})` : '';
+            el.innerHTML = `
+                <p style="font-weight:bold; font-size:0.85rem; color:#38bdf8; margin-bottom:6px;">${baseId}${name}</p>
+                <div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:10px;">
+                    <button class="btn btn-sm ${isLocked ? 'btn-success' : 'btn-warning'}" onclick="toggleSingleLock()">
+                        ${isLocked ? '<i class="fas fa-unlock"></i> 화면 풀기' : '<i class="fas fa-lock"></i> 화면 잠금'}
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="if(confirm('${baseId} 재부팅하시겠습니까?')) sendCommand('${baseId}','restart')">재부팅</button>
+                    <button class="btn btn-sm btn-danger" onclick="if(confirm('${baseId} 종료하시겠습니까?')) sendCommand('${baseId}','shutdown')">종료</button>
+                    <button class="btn btn-sm btn-sm" onclick="sendCommand('${baseId}','cancel_shutdown')">종료 취소</button>
+                    <button class="btn btn-sm btn-success" id="btnRemote" onclick="toggleRemoteControl()">원격 제어 켜기</button>
+                </div>
+                <div style="margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.1);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <span style="font-size:0.75rem; font-weight:bold; color:#38bdf8;"><i class="fas fa-history"></i> 사용 기록 (타임라인)</span>
+                        <button class="btn btn-sm" onclick="refreshSidePanelTimeline('${baseId}')" style="padding:1px 5px; font-size:0.62rem;"><i class="fas fa-sync-alt"></i></button>
+                    </div>
+                    <div id="sidePanelTimeline" style="font-size:0.68rem; max-height:180px; overflow-y:auto; display:flex; flex-direction:column; gap:5px;">
+                        <div style="color:#64748b;">불러오는 중...</div>
+                    </div>
+                </div>
+                <p style="font-size: 0.68rem; font-weight:bold; color:#94a3b8; margin-bottom:4px;">실행 중인 프로세스</p>
+                <div id="processList" style="font-size:0.65rem; max-height:110px; overflow-y:auto; opacity:0.85;"></div>
+            `;
+            refreshSidePanelTimeline(baseId);
+        }
+
+        async function refreshSidePanelTimeline(baseId) {
+            try {
+                const res = await fetch(`/get_timeline/${baseId}?t=${new Date().getTime()}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const container = document.getElementById('sidePanelTimeline');
+                if (!container) return;
+                const timeline = data.timeline || [];
+                if (timeline.length === 0) {
+                    container.innerHTML = '<div style="color:#64748b;">기록 없음</div>';
+                    return;
+                }
+                let h = '';
+                timeline.slice(0, 15).forEach(item => {
+                    const isIdle = !!item.is_idle;
+                    const isCurrent = !!item.is_current;
+                    const bg = isIdle ? 'rgba(245, 158, 11, 0.15)' : 'rgba(30, 41, 59, 0.7)';
+                    const border = isIdle ? '#f59e0b' : (isCurrent ? '#38bdf8' : 'rgba(255,255,255,0.1)');
+                    const color = isIdle ? '#fde047' : '#f1f5f9';
+                    const dur = item.duration_str || `${item.duration_sec || 0}초`;
+                    const title = isIdle ? '아무 반응 없음 (1분 이상)' : item.title;
+                    h += `
+                        <div style="background:${bg}; border-left:3px solid ${border}; padding:4px 6px; border-radius:4px;">
+                            <div style="display:flex; justify-content:space-between; color:#94a3b8; font-size:0.62rem;">
+                                <span>${isCurrent ? '● ' : ''}${item.start_time}~${item.end_time}</span>
+                                <span style="font-weight:bold; color:${isIdle ? '#fbbf24' : '#38bdf8'};">${dur}</span>
+                            </div>
+                            <div style="color:${color}; font-weight:600; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                ${escapeHtml(title)}
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = h;
+            } catch (e) {}
+        }
+
+        async function refreshProcessList(baseId) {
+            if (window.processInterval) clearInterval(window.processInterval);
+            const load = async () => {
+                try {
+                    const res = await fetch(`/get_processes/${baseId}`);
+                    const list = await res.json();
+                    const elm = document.getElementById('processList');
+                    if (elm) elm.innerHTML = list.map(p => `<div>${p}</div>`).join('');
+                } catch (e) {}
+            };
+            load();
+            window.processInterval = setInterval(load, 5000);
+        }
+
+        async function saveBlocklist() {
+            const raw = document.getElementById('blocklistInput').value;
+            const list = raw.split(',').map(s => s.trim()).filter(Boolean);
+            try {
+                await fetch('/set_blocklist', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({list})
+                });
+                alert('차단 목록이 저장되었습니다. (최대 10초 내 클라이언트에 반영)');
+            } catch (e) {
+                alert('저장 실패: ' + e);
+            }
+        }
+
+        async function loadBlocklist() {
+            try {
+                const res = await fetch('/get_blocklist');
+                const list = await res.json();
+                const elm = document.getElementById('blocklistInput');
+                if (elm) elm.value = list.join(', ');
+            } catch (e) {}
+        }
+        loadBlocklist();
+
+        // 모달 이미지 위에서 원격 마우스/키보드 조작 캡처
+        (function () {
+            const modalImg = document.getElementById('modalImg');
+            modalImg.addEventListener('mousemove', (e) => {
+                if (!remoteControlEnabled || !remoteBaseId) return;
+                const rect = modalImg.getBoundingClientRect();
+                const rx = (e.clientX - rect.left) / rect.width;
+                const ry = (e.clientY - rect.top) / rect.height;
+                sendCommand(remoteBaseId, 'mouse_move', {monitor: remoteMonitorIndex, rx, ry});
+            });
+            modalImg.addEventListener('mousedown', (e) => {
+                if (!remoteControlEnabled || !remoteBaseId) return;
+                e.preventDefault();
+                sendCommand(remoteBaseId, 'mouse_click', {button: e.button === 2 ? 'right' : 'left'});
+            });
+            modalImg.addEventListener('contextmenu', (e) => {
+                if (remoteControlEnabled) e.preventDefault();
+            });
+            window.addEventListener('keydown', (e) => {
+                if (!remoteControlEnabled || !remoteBaseId) return;
+                if (e.key === 'Escape') return; // 모달 닫기는 그대로 허용
+                e.preventDefault();
+                sendCommand(remoteBaseId, 'key_press', {vk: e.keyCode});
+            });
+        })();
+
+        // 키보드 단축키 처리 (ESC: 닫기/선택취소, C: 대시보드 화면 캡처)
+        document.addEventListener('keydown', (e) => {
+            // 1. ESC 키: 모달 닫기 또는 다중 선택 전체 해제
+            if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
+                const modal = document.getElementById('imageModal');
+                if (modal && modal.style.display === 'flex') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeModal();
+                    return;
+                }
+                if (selectedStudents && selectedStudents.size > 0) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    clearSelection();
+                    return;
+                }
+            }
+
+            // 2. C 키: 대시보드 화면 캡처 (대소문자 C/c 및 한글 ㅊ, 키코드 67, 물리키 KeyC 모두 지원)
+            const isCKey = (
+                e.code === 'KeyC' ||
+                e.key === 'c' || e.key === 'C' ||
+                e.key === 'ㅊ' || e.keyCode === 67
+            );
+
+            if (isCKey) {
+                // 텍스트 입력 중일 때(input, textarea)는 캡처 동작 방지
+                const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+                if (activeTag === 'input' || activeTag === 'textarea' || (document.activeElement && document.activeElement.isContentEditable)) {
+                    return;
+                }
+
+                // 모달 내 원격 제어 중일 때는 학생 PC로 키를 전달하므로 제외
+                if (remoteControlEnabled && remoteBaseId) {
+                    return;
+                }
+
+                // Ctrl+C(복사), Alt, Meta(Cmd) 조합키는 브라우저 기본 동작 유지
+                if (e.ctrlKey || e.metaKey || e.altKey) {
+                    return;
+                }
+
+                e.preventDefault();
+                captureDashboard();
+            }
+        }, true);
+
+        let allScreenLocked = false;
+        async function toggleAllLock() {
+            allScreenLocked = !allScreenLocked;
+            const command = allScreenLocked ? 'lock' : 'unlock';
+            
+            updatePanelControlButtons();
+
+            for (let i = 1; i <= 24; i++) {
+                const bId = `${roomPrefix}-${String(i).padStart(2, '0')}`;
+                studentLockState[bId] = allScreenLocked;
+            }
+            if (remoteBaseId) {
+                updateModalLockBtn(allScreenLocked);
+                renderControls(remoteBaseId);
+            }
+
+            await sendCommand('all', command);
+        }
+
+        let internetBlocked = false;
+        async function toggleInternet() {
+            internetBlocked = !internetBlocked;
+            const command = internetBlocked ? 'internet_off' : 'internet_on';
+            updatePanelControlButtons();
+            await sendCommand('all', command);
+        }
+
+        async function sendCommand(targetId, command, extra = {}) {
+            try {
+                const res = await fetch(`/send_command/${targetId}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({command: command, ...extra})
+                });
+                const result = await res.json();
+                console.log("Command Result:", result);
+                if(result.status === 'success') {
+                    // 성공 시 간단한 알림 효과 (선택 사항)
+                }
+            } catch (e) {
+                console.error("Command failed", e);
+            }
+        }
+
+        // 좌측 제어판 하단 실시간 시계 (날짜 & 초단위 시간)
+        function updatePanelClock() {
+            const dateEl = document.getElementById('panelClockDate');
+            const timeEl = document.getElementById('panelClockTime');
+            if (!dateEl || !timeEl) return;
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const h = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+
+            dateEl.innerText = `${y}-${m}-${d}`;
+            timeEl.innerText = `${h}:${min}:${s}`;
+        }
+        setInterval(updatePanelClock, 1000);
+        updatePanelClock();
+
+        // 토스트 알림창 헬퍼
+        function showToast(msg) {
+            const existing = document.querySelector('.toast-notify');
+            if (existing) existing.remove();
+            const t = document.createElement('div');
+            t.className = 'toast-notify';
+            t.innerHTML = msg;
+            document.body.appendChild(t);
+            setTimeout(() => {
+                if (t.parentNode) t.parentNode.removeChild(t);
+            }, 2600);
+        }
+
+        // 대시보드 화면 캡처 및 C:\Users\user\Pictures\CIM 대시보드 저장
+        async function captureDashboard() {
+            const btn = document.getElementById('btnCapture');
+            const originalHtml = btn ? btn.innerHTML : '';
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>캡처 중...</span>';
+            }
+
+            try {
+                // 1. 대시보드 화면 캡처 (좌측 제어판 하단 날짜/시간도 함께 캡처됨)
+                const target = document.querySelector('.main-layout') || document.body;
+                const canvas = await html2canvas(target, {
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#0f172a',
+                    scale: 1.5,
+                    scrollX: 0,
+                    scrollY: 0,
+                    logging: false,
+                    ignoreElements: (el) => {
+                        return el.id === 'imageModal' || el.classList.contains('screen-flash') || el.classList.contains('toast-notify');
+                    }
+                });
+
+                // 카메라 플래시 셔터 시각 효과
+                const flash = document.createElement('div');
+                flash.className = 'screen-flash';
+                document.body.appendChild(flash);
+                setTimeout(() => flash.remove(), 400);
+
+                // 2. 저장 이미지 오른쪽 하단에도 초단위 워터마크 영구 각인
+                const now = new Date();
+                const y = now.getFullYear();
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                const d = String(now.getDate()).padStart(2, '0');
+                const h = String(now.getHours()).padStart(2, '0');
+                const min = String(now.getMinutes()).padStart(2, '0');
+                const s = String(now.getSeconds()).padStart(2, '0');
+                const timestampText = `${y}-${m}-${d} ${h}:${min}:${s}`;
+
+                const ctx = canvas.getContext('2d');
+                const fontSize = Math.max(18, Math.round(canvas.width * 0.013));
+                ctx.font = `bold ${fontSize}px "Outfit", "Noto Sans KR", sans-serif`;
+                const metrics = ctx.measureText(`🕒 ${timestampText}`);
+                const padX = 14;
+                const padY = 8;
+                const badgeW = metrics.width + padX * 2;
+                const badgeH = fontSize + padY * 2;
+                const margin = 16;
+                const posX = canvas.width - badgeW - margin;
+                const posY = canvas.height - badgeH - margin;
+
+                ctx.save();
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                if (ctx.roundRect) {
+                    ctx.roundRect(posX, posY, badgeW, badgeH, 8);
+                } else {
+                    ctx.rect(posX, posY, badgeW, badgeH);
+                }
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#38bdf8';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`🕒 ${timestampText}`, posX + padX, posY + badgeH / 2);
+                ctx.restore();
+
+                // 3. C:\Users\user\Pictures\CIM 대시보드 폴더로 서버에 직접 저장
+                const filename = `대시보드_캡처_${y}${m}${d}_${h}${min}${s}.png`;
+                const dataUrl = canvas.toDataURL('image/png');
+
+                const res = await fetch('/save_dashboard_capture', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename, image: dataUrl })
+                });
+                const result = await res.json();
+
+                if (result.status === 'success') {
+                    showToast(`📸 <b>대시보드 캡처 완료!</b><br><span style="font-size:0.75rem; opacity:0.85;">사진 &gt; CIM 대시보드 폴더에 저장되었습니다.</span>`);
+                } else {
+                    alert('저장 실패: ' + (result.message || '알 수 없는 오류'));
+                }
+            } catch (err) {
+                console.error('대시보드 화면 캡처 실패:', err);
+                alert('화면 캡처 중 오류가 발생했습니다: ' + err.message);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                }
+            }
+        }
+
+        // 초기화 및 주기적 갱신 시작 (부드러운 화면 전환을 위해 500ms로 최적화)
+        setInterval(updateStatus, 500);
+        setInterval(updateLogs, 3000);
+        updateStatus();
+        updateLogs();
+    </script>
+</body>
+</html>

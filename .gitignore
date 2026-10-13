@@ -1,0 +1,7 @@
+__pycache__/
+build/
+02_학생용_모니터링_에이전트_전송용v3.exe_extracted/
+학생_화면_저장폴더/
+*.lnk
+all_agent_logs.json
+all_timelines.json
