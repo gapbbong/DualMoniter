@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIM PRO | 과제물 제출</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #9333ea;
+            --primary-hover: #7e22ce;
+            --primary-light: rgba(168, 85, 247, 0.15);
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --border-color: rgba(255, 255, 255, 0.12);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Malgun Gothic", sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .submit-container {
+            width: 100%;
+            max-width: 620px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.55);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            padding: 24px 28px 18px;
+            border-bottom: 1px solid var(--border-color);
+            background: linear-gradient(135deg, rgba(147, 51, 234, 0.12), transparent);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title i {
+            font-size: 1.6rem;
+            color: #c084fc;
+        }
+
+        .header-title h1 {
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .student-badge {
+            background: rgba(147, 51, 234, 0.25);
+            border: 1px solid rgba(192, 132, 252, 0.4);
+            color: #e9d5ff;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.88rem;
+            font-weight: 700;
+        }
+
+        .content {
+            padding: 24px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .assignment-info-bar {
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: 0.88rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid var(--primary);
+        }
+
+        .assignment-title {
+            font-weight: 700;
+            color: #cbd5e1;
+        }
+
+        /* 드래그 앤 드롭 영역 */
+        .drop-zone {
+            border: 2px dashed rgba(168, 85, 247, 0.5);
+            border-radius: 14px;
+            background: var(--primary-light);
+            padding: 34px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            position: relative;
+        }
+
+        .drop-zone.dragover {
+            background: rgba(168, 85, 247, 0.3);
+            border-color: #c084fc;
+            transform: scale(1.01);
+        }
+
+        .drop-icon {
+            font-size: 2.8rem;
+            color: #c084fc;
+            margin-bottom: 10px;
+        }
+
+        .drop-text {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #f1f5f9;
+            margin-bottom: 6px;
+        }
+
+        .drop-subtext {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .drop-btn {
+            display: inline-block;
+            margin-top: 14px;
+            padding: 8px 18px;
+            background: var(--primary);
+            color: #fff;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .drop-btn:hover {
+            background: var(--primary-hover);
+        }
+
+        /* 파일 목록 */
+        .file-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 700;
+            margin-top: 4px;
+        }
+
+        .file-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .file-item {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .file-icon {
+            font-size: 1.3rem;
+            color: #38bdf8;
+        }
+
+        .file-name {
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: #f1f5f9;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .file-size {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .btn-remove {
+            background: none;
+            border: none;
+            color: #f87171;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 4px 6px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+
+        .btn-remove:hover {
+            background: rgba(239, 68, 68, 0.15);
+        }
+
+        /* 하단 안내 및 제출 버튼 */
+        .notice {
+            font-size: 0.76rem;
+            color: var(--text-muted);
+            line-height: 1.45;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 10px 12px;
+            border-radius: 8px;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #9333ea, #7e22ce);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.05rem;
+            font-weight: 800;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 20px rgba(147, 51, 234, 0.35);
+        }
+
+        .submit-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(147, 51, 234, 0.5);
+        }
+
+        .submit-btn:disabled {
+            background: #475569;
+            cursor: not-allowed;
+            opacity: 0.6;
+            box-shadow: none;
+        }
+
+        /* 제출 완료 화면 */
+        .success-box {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 14px;
+            padding: 30px 20px;
+        }
+
+        .success-icon {
+            font-size: 4rem;
+            color: var(--success);
+            animation: bounceIn 0.5s ease;
+        }
+
+        @keyframes bounceIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            70% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); }
+        }
+
+        .success-title {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .success-desc {
+            font-size: 0.9rem;
+            color: #cbd5e1;
+            line-height: 1.6;
+        }
+
+        /* 스크롤바 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="submit-container">
+        <div class="header">
+            <div class="header-title">
+                <i class="fas fa-file-arrow-up"></i>
+                <h1>과제물 제출</h1>
+            </div>
+            <div class="student-badge" id="studentBadge">
+                <i class="fas fa-desktop"></i> <span id="pcIdText">PC 확인중...</span>
+            </div>
+        </div>
+
+        <!-- 제출 폼 화면 -->
+        <div class="content" id="formView">
+            <div class="assignment-info-bar">
+                <span>과제명: <b class="assignment-title" id="assignTitle">과제물 제출</b></span>
+                <span style="font-size: 0.78rem; color: #94a3b8;" id="currentDate"></span>
+            </div>
+
+            <!-- 드래그 & 드롭 영역 -->
+            <div class="drop-zone" id="dropZone">
+                <i class="fas fa-cloud-arrow-up drop-icon"></i>
+                <div class="drop-text">제출할 파일들을 여기에 마우스로 끌어다 놓으세요</div>
+                <div class="drop-subtext">바탕화면, 내 문서, D:\드라이브, USB 등 어느 폴더든 가능</div>
+                <button type="button" class="drop-btn" onclick="document.getElementById('fileInput').click()">
+                    <i class="fas fa-folder-open"></i> 내 PC에서 파일 찾기
+                </button>
+                <input type="file" id="fileInput" multiple style="display: none;" onchange="handleFileSelect(event)">
+            </div>
+
+            <!-- 선택된 파일 목록 -->
+            <div id="fileListSection" style="display: none; flex-direction: column; gap: 8px;">
+                <div class="file-list-header">
+                    <span>선택된 파일 (<span id="fileCount">0</span>개)</span>
+                    <span id="totalSize">0 KB</span>
+                </div>
+                <div class="file-list" id="fileList"></div>
+            </div>
+
+            <div class="notice">
+                💡 <b>안내</b>: 여러 개의 파일(CAD 모델링, 보고서, 스프레드시트, 캡처 사진 등)을 한 번에 끌어다 놓을 수 있습니다. 실수로 창을 닫았더라도 바탕화면의 <b>[과제제출]</b> 바로가기 아이콘으로 언제든 다시 열 수 있습니다.
+            </div>
+
+            <button type="button" class="submit-btn" id="btnSubmit" onclick="submitFiles()" disabled>
+                <i class="fas fa-paper-plane"></i> 과제물 제출하기
+            </button>
+        </div>
+
+        <!-- 제출 성공 화면 -->
+        <div class="content success-box" id="successView">
+            <i class="fas fa-circle-check success-icon"></i>
+            <div class="success-title">과제물이 성공적으로 제출되었습니다!</div>
+            <div class="success-desc">
+                선생님 PC로 정상 전송되었습니다.<br>
+                추가하거나 수정할 파일이 있으면 아래 버튼을 눌러 다시 제출할 수 있습니다.
+            </div>
+            <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 12px 18px; font-size: 0.85rem; width: 100%; text-align: left; margin: 10px 0;">
+                <div style="color: #94a3b8; font-size: 0.75rem;">제출된 파일:</div>
+                <div id="submittedList" style="margin-top: 4px; font-weight: 600; color: #a7f3d0;"></div>
+            </div>
+            <button type="button" class="drop-btn" onclick="resetForm()" style="margin-top: 4px;">
+                <i class="fas fa-plus"></i> 추가 / 다시 제출하기
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // URL 파라미터에서 client_id 읽기
+        const urlParams = new URLSearchParams(window.location.search);
+        const clientId = urlParams.get('id') || "203-00";
+
+        let selectedFiles = [];
+
+        // 오늘 날짜 표시
+        const now = new Date();
+        document.getElementById('currentDate').innerText = `${now.getFullYear()}.${now.getMonth()+1}.${now.getDate()}`;
+
+        // 학생 정보 로드
+        async function loadInfo() {
+            try {
+                const res = await fetch(`/api/assignment/student_info/${clientId}`);
+                const data = await res.json();
+                const nameStr = data.name ? ` (${data.name})` : '';
+                document.getElementById('pcIdText').innerText = `${clientId}${nameStr}`;
+                if (data.assignment_title) {
+                    document.getElementById('assignTitle').innerText = data.assignment_title;
+                }
+            } catch (e) {
+                document.getElementById('pcIdText').innerText = clientId;
+            }
+        }
+        loadInfo();
+
+        // 드래그 앤 드롭 이벤트
+        const dropZone = document.getElementById('dropZone');
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.add('dragover');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.remove('dragover');
+            }, false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            addFiles(files);
+        });
+
+        function handleFileSelect(e) {
+            addFiles(e.target.files);
+        }
+
+        function addFiles(files) {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                // 중복 방지
+                if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                    selectedFiles.push(file);
+                }
+            }
+            renderFileList();
+        }
+
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            renderFileList();
+        }
+
+        function getFileIcon(name) {
+            const ext = name.split('.').pop().toLowerCase();
+            if (['hwp', 'hwpx', 'doc', 'docx', 'txt', 'pdf'].includes(ext)) return 'fa-file-lines';
+            if (['xls', 'xlsx', 'csv'].includes(ext)) return 'fa-file-excel';
+            if (['png', 'jpg', 'jpeg', 'bmp', 'gif'].includes(ext)) return 'fa-file-image';
+            if (['ipt', 'iam', 'idw', 'dwg', 'stl', 'obj'].includes(ext)) return 'fa-cube';
+            if (['zip', '7z', 'rar'].includes(ext)) return 'fa-file-zipper';
+            return 'fa-file';
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+
+        function renderFileList() {
+            const listSection = document.getElementById('fileListSection');
+            const fileListEl = document.getElementById('fileList');
+            const countEl = document.getElementById('fileCount');
+            const sizeEl = document.getElementById('totalSize');
+            const btnSubmit = document.getElementById('btnSubmit');
+
+            if (selectedFiles.length === 0) {
+                listSection.style.display = 'none';
+                btnSubmit.disabled = true;
+                return;
+            }
+
+            listSection.style.display = 'flex';
+            fileListEl.innerHTML = '';
+
+            let totalBytes = 0;
+            selectedFiles.forEach((file, idx) => {
+                totalBytes += file.size;
+                const iconClass = getFileIcon(file.name);
+
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                item.innerHTML = `
+                    <div class="file-info">
+                        <i class="fas ${iconClass} file-icon"></i>
+                        <span class="file-name" title="${file.name}">${file.name}</span>
+                        <span class="file-size">${formatSize(file.size)}</span>
+                    </div>
+                    <button type="button" class="btn-remove" onclick="removeFile(${idx})" title="삭제">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                fileListEl.appendChild(item);
+            });
+
+            countEl.innerText = selectedFiles.length;
+            sizeEl.innerText = formatSize(totalBytes);
+            btnSubmit.disabled = false;
+        }
+
+        async function submitFiles() {
+            if (selectedFiles.length === 0) return;
+
+            const btnSubmit = document.getElementById('btnSubmit');
+            const originalText = btnSubmit.innerHTML;
+            btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 과제물 전송 중...';
+            btnSubmit.disabled = true;
+
+            const formData = new FormData();
+            formData.append('client_id', clientId);
+            selectedFiles.forEach(file => {
+                formData.append('files', file);
+            });
+
+            try {
+                const res = await fetch('/api/assignment/submit', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showSuccess(data.submitted_files || selectedFiles.map(f => f.name));
+                } else {
+                    alert('제출 실패: ' + (data.message || '오류가 발생했습니다.'));
+                    btnSubmit.innerHTML = originalText;
+                    btnSubmit.disabled = false;
+                }
+            } catch (err) {
+                console.error(err);
+                alert('서버 전송 중 통신 오류가 발생했습니다.');
+                btnSubmit.innerHTML = originalText;
+                btnSubmit.disabled = false;
+            }
+        }
+
+        function showSuccess(files) {
+            document.getElementById('formView').style.display = 'none';
+            const successView = document.getElementById('successView');
+            successView.style.display = 'flex';
+            document.getElementById('submittedList').innerText = files.join(', ');
+        }
+
+        function resetForm() {
+            selectedFiles = [];
+            renderFileList();
+            document.getElementById('fileInput').value = '';
+            document.getElementById('formView').style.display = 'flex';
+            document.getElementById('successView').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

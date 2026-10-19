@@ -426,6 +426,18 @@ body {
     box-shadow: 0 0 10px rgba(168, 85, 247, 0.45);
 }
 
+.ctrl-btn.btn-assignment {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(52, 211, 153, 0.45);
+    color: #6ee7b7;
+}
+.ctrl-btn.btn-assignment:hover {
+    background: rgba(16, 185, 129, 0.45);
+    border-color: #34d399;
+    color: #fff;
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.45);
+}
+
 .ctrl-bottom-info {
     margin-top: auto;
     padding-top: 4px;

@@ -75,6 +75,18 @@
                 </button>
             </div>
 
+            <div class="ctrl-section-label">과제물 관리</div>
+            <div class="ctrl-btn-list">
+                <button class="ctrl-btn btn-assignment" id="btnAssignmentCollect" onclick="openAssignmentModal()" title="과제 제출 시작 및 위치 설정">
+                    <i class="fas fa-file-arrow-up"></i>
+                    <span>과제 회수</span>
+                </button>
+                <button class="ctrl-btn btn-sub" id="btnOpenAssignFolder" onclick="openAssignmentFolderDirect()" title="과제 저장 폴더 열기">
+                    <i class="fas fa-folder-open"></i>
+                    <span>폴더 열기</span>
+                </button>
+            </div>
+
             <div class="ctrl-bottom-info">
                 <div class="ctrl-clock-widget" title="현재 날짜 및 시간">
                     <div class="clock-date" id="panelClockDate">2026-09-15</div>
@@ -245,6 +257,66 @@
                 <button type="button" class="btn btn-secondary" onclick="closeWallpaperModal()" style="padding: 8px 16px; font-size: 0.82rem;">취소</button>
                 <button type="button" class="btn btn-success" id="btnApplyWallpaper" onclick="applyWallpaperFinal()" style="padding: 8px 20px; font-weight: 800; font-size: 0.82rem; background: #9333ea; border-color: #a855f7;">
                     <i class="fas fa-magic"></i> 바탕화면 적용
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 과제물 회수 설정 모달 -->
+    <div id="assignmentModal" class="modal-overlay" onclick="if(event.target === this) closeAssignmentModal();" style="display:none; align-items:center; justify-content:center; z-index:9999;">
+        <div class="modal-content" style="max-width: 580px; width: 92%; background: #1e293b; border: 1px solid rgba(255,255,255,0.15); border-radius: 14px; padding: 22px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); color: #f8fafc; display: flex; flex-direction: column; gap: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+                <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 8px; color: #34d399;">
+                    <i class="fas fa-file-arrow-up"></i> 과제물 회수 관리
+                </h3>
+                <button onclick="closeAssignmentModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.3rem; cursor: pointer;">&times;</button>
+            </div>
+
+            <!-- 과제명 입력 -->
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label style="font-size: 0.82rem; font-weight: 700; color: #cbd5e1;">1. 과제명</label>
+                <input type="text" id="assignModalTitle" placeholder="예: 10월 19일 실습과제" style="padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.3); color: #fff; font-size: 0.88rem;">
+            </div>
+
+            <!-- 저장 위치 선택/입력 -->
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label style="font-size: 0.82rem; font-weight: 700; color: #cbd5e1;">2. 교사 PC 저장 위치 (원하는 경로 지정)</label>
+                <div style="display: flex; gap: 6px;">
+                    <input type="text" id="assignModalSaveDir" style="flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.3); color: #fff; font-size: 0.82rem;" placeholder="저장할 폴더 경로를 입력하세요">
+                    <button type="button" class="btn btn-secondary" onclick="openAssignmentFolderDirect()" title="지정된 폴더를 윈도우 탐색기로 열기" style="padding: 0 12px;">
+                        <i class="fas fa-folder-open"></i> 열기
+                    </button>
+                </div>
+                <div style="font-size: 0.73rem; color: #94a3b8; line-height: 1.4;">
+                    ※ 지정한 위치 아래에 학생별로 <b>[PC번호_학생이름]</b> 폴더가 자동 생성되어 과제물이 분류됩니다.
+                </div>
+            </div>
+
+            <!-- 대상 표시 -->
+            <div style="background: rgba(0,0,0,0.25); padding: 10px 14px; border-radius: 8px; font-size: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+                <span>회수 대상:</span>
+                <b id="assignTargetDesc" style="color: #38bdf8;">모든 학생 PC (전체 24대)</b>
+            </div>
+
+            <!-- 실시간 제출 현황 리스트 -->
+            <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; font-weight: 700;">
+                    <span><i class="fas fa-users-viewfinder"></i> 실시간 제출 현황</span>
+                    <span style="color: #34d399;"><span id="assignSubmittedCount">0</span> / <span id="assignTotalCount">24</span> 완료</span>
+                </div>
+                <div id="assignSubmittedSummary" style="max-height: 120px; overflow-y: auto; font-size: 0.75rem; color: #cbd5e1; display: flex; flex-direction: column; gap: 4px;">
+                    <div style="color: #64748b;">아직 제출된 과제가 없습니다. 아래 [제출 시작] 버튼을 누르면 학생 화면에 제출창이 열립니다.</div>
+                </div>
+            </div>
+
+            <!-- 모달 버튼들 -->
+            <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px;">
+                <button type="button" class="btn btn-secondary" onclick="closeAssignmentModal()" style="padding: 9px 16px; font-size: 0.82rem;">닫기</button>
+                <button type="button" class="btn btn-primary" onclick="openAssignmentFolderDirect()" style="padding: 9px 16px; font-size: 0.82rem;">
+                    <i class="fas fa-folder-open"></i> 저장 폴더 열기
+                </button>
+                <button type="button" class="btn btn-success" id="btnStartAssignmentSubmit" onclick="startAssignmentSubmit()" style="padding: 9px 20px; font-weight: 800; font-size: 0.85rem; background: #059669; border-color: #10b981;">
+                    <i class="fas fa-paper-plane"></i> 과제 제출 시작 (학생 화면에 띄우기)
                 </button>
             </div>
         </div>
@@ -853,6 +925,158 @@
             } catch (err) {
                 console.error('[Wallpaper Reset Error]', err);
                 alert('배경 복원 중 오류가 발생했습니다.');
+            }
+        }
+
+        // ===== 과제물 회수 및 제출 관리 스크립트 =====
+        let assignPollInterval = null;
+
+        async function openAssignmentModal() {
+            const modal = document.getElementById('assignmentModal');
+            if (!modal) return;
+
+            const count = (typeof selectedStudents !== 'undefined' && selectedStudents.size) ? selectedStudents.size : 0;
+            const targetEl = document.getElementById('assignTargetDesc');
+            if (targetEl) {
+                targetEl.innerText = count > 0 ? `선택된 ${count}대 학생 PC` : '모든 학생 PC (전체 24대)';
+            }
+
+            try {
+                const res = await fetch('/api/assignment/config');
+                const data = await res.json();
+                const titleInput = document.getElementById('assignModalTitle');
+                const dirInput = document.getElementById('assignModalSaveDir');
+                if (titleInput && (!titleInput.value || titleInput.value.trim() === '')) {
+                    const todayStr = new Date().toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
+                    titleInput.value = data.title || `${todayStr} 실습 과제`;
+                }
+                if (dirInput) {
+                    dirInput.value = data.save_dir || data.default_dir || '';
+                }
+            } catch (e) {
+                console.error('Failed to load assignment config', e);
+            }
+
+            await refreshAssignmentStatus();
+            modal.style.display = 'flex';
+
+            if (assignPollInterval) clearInterval(assignPollInterval);
+            assignPollInterval = setInterval(refreshAssignmentStatus, 3000);
+        }
+
+        function closeAssignmentModal() {
+            const modal = document.getElementById('assignmentModal');
+            if (modal) modal.style.display = 'none';
+            if (assignPollInterval) {
+                clearInterval(assignPollInterval);
+                assignPollInterval = null;
+            }
+        }
+
+        async function startAssignmentSubmit() {
+            const titleInput = document.getElementById('assignModalTitle');
+            const dirInput = document.getElementById('assignModalSaveDir');
+            const title = (titleInput ? titleInput.value.trim() : '') || '실습 과제';
+            const saveDir = (dirInput ? dirInput.value.trim() : '');
+
+            if (!saveDir) {
+                alert('과제물을 저장할 폴더 경로를 입력해주세요.');
+                return;
+            }
+
+            const count = (typeof selectedStudents !== 'undefined' && selectedStudents.size) ? selectedStudents.size : 0;
+            const targetDesc = count > 0 ? `선택된 ${count}대 학생 PC` : '모든 학생 PC';
+            const targetId = count > 0 ? Array.from(selectedStudents) : 'all';
+
+            const confirmMsg = `[ ${targetDesc} ]에 과제 제출창을 여시겠습니까?\n\n- 과제명: ${title}\n- 저장 위치: ${saveDir}\n\n※ 학생 화면에 제출창이 자동으로 열리며, 학생이 창을 닫아도 바탕화면 아이콘으로 언제든 다시 열 수 있습니다.`;
+            if (!confirm(confirmMsg)) return;
+
+            const btn = document.getElementById('btnStartAssignmentSubmit');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 신호 전송 중...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/assignment/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        title: title,
+                        save_dir: saveDir,
+                        target_id: targetId
+                    })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    alert('과제 제출이 시작되었습니다!\n학생 PC 화면에 과제 제출창이 열렸습니다.');
+                    await refreshAssignmentStatus();
+                } else {
+                    alert('시작 실패: ' + (data.message || '오류'));
+                }
+            } catch (e) {
+                console.error(e);
+                alert('통신 오류가 발생했습니다.');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        async function openAssignmentFolderDirect() {
+            const dirInput = document.getElementById('assignModalSaveDir');
+            const saveDir = dirInput ? dirInput.value.trim() : '';
+
+            try {
+                const res = await fetch('/api/assignment/open_folder', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ save_dir: saveDir })
+                });
+                const data = await res.json();
+                if (data.status !== 'success') {
+                    alert('폴더 열기 실패: ' + (data.message || '오류'));
+                }
+            } catch (e) {
+                console.error(e);
+                alert('폴더를 여는 중 오류가 발생했습니다.');
+            }
+        }
+
+        async function refreshAssignmentStatus() {
+            try {
+                const res = await fetch('/api/assignment/status');
+                const data = await res.json();
+                const submissions = data.submissions || {};
+
+                const submittedKeys = Object.keys(submissions);
+                const countEl = document.getElementById('assignSubmittedCount');
+                if (countEl) countEl.innerText = submittedKeys.length;
+
+                const summaryEl = document.getElementById('assignSubmittedSummary');
+                if (summaryEl) {
+                    if (submittedKeys.length === 0) {
+                        summaryEl.innerHTML = '<div style="color: #64748b;">아직 제출된 과제가 없습니다. [제출 시작] 버튼을 누르면 학생 화면에 제출창이 열립니다.</div>';
+                    } else {
+                        summaryEl.innerHTML = '';
+                        submittedKeys.forEach(cid => {
+                            const info = submissions[cid];
+                            const sName = (studentNames && studentNames[cid]) ? studentNames[cid] : '';
+                            const displayName = sName ? `${cid} (${sName})` : cid;
+                            const item = document.createElement('div');
+                            item.style.padding = '4px 6px';
+                            item.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+                            item.style.display = 'flex';
+                            item.style.justifyContent = 'space-between';
+                            item.innerHTML = `
+                                <span><b style="color: #a7f3d0;">${displayName}</b>: ${info.files ? info.files.join(', ') : ''}</span>
+                                <span style="color: #94a3b8; font-size: 0.7rem;">${info.last_time || ''}</span>
+                            `;
+                            summaryEl.appendChild(item);
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to refresh assignment status', e);
             }
         }
 

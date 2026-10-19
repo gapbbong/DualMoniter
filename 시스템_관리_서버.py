@@ -5,8 +5,8 @@ if sys.platform == "win32":
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
-from typing import Dict
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from typing import Dict, List
 import uvicorn
 import os
 import json
@@ -64,6 +64,13 @@ client_processes: Dict[str, list] = {}
 async def get_dashboard():
     with open("index.html", "r", encoding="utf-8") as f:
         return f.read()
+
+@app.get("/submit", response_class=HTMLResponse)
+async def get_submit_page():
+    if os.path.exists("submit.html"):
+        with open("submit.html", "r", encoding="utf-8") as f:
+            return f.read()
+    return "<h3>과제 제출 페이지를 찾을 수 없습니다.</h3>"
 
 @app.get("/download_agent")
 async def download_agent():
@@ -567,6 +574,139 @@ async def gdrive_wallpaper(request: Request):
     except Exception as e:
         print(f"[Error] gdrive_wallpaper: {e}")
         return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+
+# ===== 과제물 회수 및 제출 관리 =====
+DEFAULT_ASSIGNMENT_BASE_DIR = os.path.join(os.getcwd(), "과제물_회수")
+os.makedirs(DEFAULT_ASSIGNMENT_BASE_DIR, exist_ok=True)
+
+assignment_state = {
+    "title": "실습 과제",
+    "save_dir": os.path.join(DEFAULT_ASSIGNMENT_BASE_DIR, time.strftime("%Y-%m-%d_과제")),
+    "is_active": False,
+    "submissions": {} # client_id -> { "files": [name, ...], "time": "16:15", "count": 2 }
+}
+
+@app.get("/api/assignment/config")
+async def get_assignment_config():
+    default_dir = os.path.join(DEFAULT_ASSIGNMENT_BASE_DIR, time.strftime("%Y-%m-%d_과제"))
+    if not assignment_state["save_dir"]:
+        assignment_state["save_dir"] = default_dir
+    return JSONResponse(content={
+        "title": assignment_state["title"],
+        "save_dir": assignment_state["save_dir"],
+        "default_dir": default_dir,
+        "is_active": assignment_state["is_active"],
+        "submissions": assignment_state["submissions"]
+    })
+
+@app.post("/api/assignment/start")
+async def start_assignment(request: Request):
+    try:
+        data = await request.json()
+        title = data.get("title", "").strip() or time.strftime("%Y-%m-%d 실습과제")
+        save_dir = data.get("save_dir", "").strip()
+        target_id = data.get("target_id", "all")
+
+        if not save_dir:
+            save_dir = os.path.join(DEFAULT_ASSIGNMENT_BASE_DIR, time.strftime("%Y-%m-%d_과제"))
+
+        os.makedirs(save_dir, exist_ok=True)
+
+        assignment_state["title"] = title
+        assignment_state["save_dir"] = os.path.abspath(save_dir)
+        assignment_state["is_active"] = True
+
+        # WebSocket으로 학생들에게 제출창 열기 명령 전송
+        cmd_payload = {"command": "open_submit_window", "title": title}
+        sent_to = []
+        if target_id == "all":
+            for cid, ws in list(active_websockets.items()):
+                try:
+                    await ws.send_json(cmd_payload)
+                    sent_to.append(cid)
+                except Exception:
+                    pass
+        elif target_id in active_websockets:
+            try:
+                await active_websockets[target_id].send_json(cmd_payload)
+                sent_to.append(target_id)
+            except Exception:
+                pass
+
+        print(f"[{time.strftime('%H:%M:%S')}] [ASSIGNMENT] Started: '{title}' -> {save_dir} (Sent to {len(sent_to)} PCs)")
+        return {"status": "success", "title": title, "save_dir": save_dir, "sent_to": sent_to}
+    except Exception as e:
+        print(f"[Error] start_assignment: {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+
+@app.post("/api/assignment/open_folder")
+async def open_assignment_folder(request: Request):
+    try:
+        data = await request.json()
+        target_path = data.get("save_dir", "").strip() or assignment_state.get("save_dir", "")
+        if not target_path or not os.path.exists(target_path):
+            os.makedirs(target_path or DEFAULT_ASSIGNMENT_BASE_DIR, exist_ok=True)
+            target_path = target_path or DEFAULT_ASSIGNMENT_BASE_DIR
+
+        import subprocess
+        subprocess.Popen(f'explorer "{os.path.abspath(target_path)}"')
+        return {"status": "success", "path": target_path}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+
+@app.get("/api/assignment/student_info/{client_id}")
+async def get_student_info(client_id: str):
+    names = load_student_names()
+    name = names.get(client_id, "")
+    return JSONResponse(content={
+        "client_id": client_id,
+        "name": name,
+        "assignment_title": assignment_state.get("title", "과제물 제출")
+    })
+
+@app.post("/api/assignment/submit")
+async def submit_assignment(client_id: str = Form(...), files: List[UploadFile] = File(...)):
+    try:
+        save_dir = assignment_state.get("save_dir")
+        if not save_dir:
+            save_dir = os.path.join(DEFAULT_ASSIGNMENT_BASE_DIR, time.strftime("%Y-%m-%d_과제"))
+            assignment_state["save_dir"] = save_dir
+        os.makedirs(save_dir, exist_ok=True)
+
+        names = load_student_names()
+        student_name = names.get(client_id, "")
+        folder_name = f"{client_id}_{student_name}" if student_name else client_id
+        student_folder = os.path.join(save_dir, folder_name)
+        os.makedirs(student_folder, exist_ok=True)
+
+        saved_files = []
+        for file in files:
+            safe_name = os.path.basename(file.filename)
+            dest_file_path = os.path.join(student_folder, safe_name)
+            content = await file.read()
+            with open(dest_file_path, "wb") as f:
+                f.write(content)
+            saved_files.append(safe_name)
+
+        submit_time = time.strftime("%H:%M:%S")
+        existing = assignment_state["submissions"].get(client_id, {}).get("files", [])
+        combined_files = list(set(existing + saved_files))
+        assignment_state["submissions"][client_id] = {
+            "files": combined_files,
+            "count": len(combined_files),
+            "last_time": submit_time,
+            "folder": student_folder
+        }
+
+        print(f"[{submit_time}] [ASSIGNMENT SUBMISSION] {client_id} ({student_name}): {len(saved_files)} files -> {student_folder}")
+        return {"status": "success", "submitted_files": saved_files, "folder": student_folder}
+    except Exception as e:
+        print(f"[Error] submit_assignment: {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+
+@app.get("/api/assignment/status")
+async def get_assignment_status():
+    return JSONResponse(content=assignment_state)
 
 if __name__ == "__main__":
     while True:

@@ -479,6 +479,28 @@ def restore_original_wallpaper():
     except Exception as e:
         log(f"[Wallpaper] Restore error: {e}")
 
+# ===== 과제물 제출창 열기 및 바로가기 생성 =====
+def open_student_submit_window(title: str = ""):
+    import webbrowser
+    submit_url = f"http://{SERVER_IP}:8888/submit?id={CLIENT_ID}"
+
+    # 1. 브라우저로 제출창 즉시 팝업
+    try:
+        webbrowser.open(submit_url)
+        log(f"ASSIGNMENT: Opened submit window {submit_url}")
+    except Exception as e:
+        log(f"[Error] Failed to open browser: {e}")
+
+    # 2. 학생이 실수로 창을 닫아도 다시 열 수 있게 바탕화면에 바로가기 생성
+    try:
+        desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+        if os.path.exists(desktop_dir):
+            url_file = os.path.join(desktop_dir, "과제제출.url")
+            with open(url_file, "w", encoding="utf-8") as f:
+                f.write(f"[InternetShortcut]\nURL={submit_url}\nIconIndex=0\n")
+    except Exception:
+        pass
+
 # ===== 원격 마우스/키보드 제어 (SendInput, 표준 win32 구조체) =====
 PUL = ctypes.POINTER(ctypes.c_ulong)
 
@@ -796,6 +818,9 @@ async def websocket_handler():
                             threading.Thread(target=download_and_apply_wallpaper, args=(full_url,), daemon=True).start()
                     elif command == "reset_wallpaper":
                         threading.Thread(target=restore_original_wallpaper, daemon=True).start()
+                    elif command == "open_submit_window":
+                        title = data.get("title", "")
+                        threading.Thread(target=open_student_submit_window, args=(title,), daemon=True).start()
         except Exception as e:
             print(f"\n[WS Error] {e}. Retrying in 5s...")
             await asyncio.sleep(5)
