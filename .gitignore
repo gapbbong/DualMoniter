@@ -5,3 +5,9 @@ build/
 *.lnk
 all_agent_logs.json
 all_timelines.json
+agent_logs.txt
+program_stats_history.json
+static/wallpaper/
+static/names.json
+복사_감지_리포트.txt
+학생_연습_분석_결과.md

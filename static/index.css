@@ -388,6 +388,44 @@ body {
 .ctrl-btn.btn-sub:hover { background: rgba(255, 255, 255, 0.12); }
 .ctrl-btn.btn-sub span { font-size: 0.74rem; opacity: 0.85; }
 
+.ctrl-btn.btn-wallpaper {
+    background: rgba(168, 85, 247, 0.2);
+    border-color: rgba(192, 132, 252, 0.45);
+    color: #c084fc;
+}
+.ctrl-btn.btn-wallpaper:hover {
+    background: rgba(168, 85, 247, 0.45);
+    border-color: #c084fc;
+    color: #fff;
+    box-shadow: 0 0 14px rgba(168, 85, 247, 0.45);
+}
+
+.ctrl-btn.btn-wallpaper-reset {
+    background: rgba(100, 116, 139, 0.2);
+    border-color: rgba(148, 163, 184, 0.4);
+    color: #cbd5e1;
+}
+.ctrl-btn.btn-wallpaper-reset:hover {
+    background: rgba(100, 116, 139, 0.45);
+    border-color: #94a3b8;
+    color: #fff;
+}
+
+.wp-tab-btn {
+    background: transparent;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+}
+.wp-tab-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+}
+.wp-tab-btn.active {
+    background: #9333ea !important;
+    color: #fff !important;
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.45);
+}
+
 .ctrl-bottom-info {
     margin-top: auto;
     padding-top: 4px;

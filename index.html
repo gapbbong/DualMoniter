@@ -63,6 +63,18 @@
                 </button>
             </div>
 
+            <div class="ctrl-section-label">배경화면 제어</div>
+            <div class="ctrl-btn-list">
+                <button class="ctrl-btn btn-wallpaper" id="btnSetWallpaper" onclick="triggerWallpaperUpload()" title="학생 PC 바탕화면 변경 (영구 유지)">
+                    <i class="fas fa-image"></i>
+                    <span>배경 설정</span>
+                </button>
+                <button class="ctrl-btn btn-wallpaper-reset" id="btnResetWallpaper" onclick="handleWallpaperResetClick()" title="학생 PC 원래 배경화면으로 복원">
+                    <i class="fas fa-undo"></i>
+                    <span>배경 복원</span>
+                </button>
+            </div>
+
             <div class="ctrl-bottom-info">
                 <div class="ctrl-clock-widget" title="현재 날짜 및 시간">
                     <div class="clock-date" id="panelClockDate">2026-09-15</div>
@@ -167,6 +179,74 @@
                     <div class="timeline-empty"><i class="fas fa-spinner fa-spin"></i> 사용 기록을 불러오는 중...</div>
                 </div>
             </aside>
+        </div>
+    </div>
+
+    <!-- 배경화면 설정 모달 -->
+    <div id="wallpaperModal" class="modal-overlay" onclick="if(event.target === this) closeWallpaperModal();" style="display:none; align-items:center; justify-content:center; z-index:9999;">
+        <div class="modal-content" style="max-width: 520px; width: 92%; background: #1e293b; border: 1px solid rgba(255,255,255,0.15); border-radius: 14px; padding: 22px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); color: #f8fafc; display: flex; flex-direction: column; gap: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+                <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 8px; color: #c084fc;">
+                    <i class="fas fa-image"></i> 바탕화면 설정
+                </h3>
+                <button onclick="closeWallpaperModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.3rem; cursor: pointer;">&times;</button>
+            </div>
+
+            <!-- 탭 전환 버튼 -->
+            <div style="display: flex; gap: 8px; background: rgba(0,0,0,0.25); padding: 4px; border-radius: 8px;">
+                <button type="button" id="tabBtnFile" class="wp-tab-btn active" onclick="switchWpTab('file')" style="flex: 1; padding: 8px; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 700; cursor: pointer;">
+                    <i class="fas fa-folder-open"></i> 내 PC 파일
+                </button>
+                <button type="button" id="tabBtnGdrive" class="wp-tab-btn" onclick="switchWpTab('gdrive')" style="flex: 1; padding: 8px; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 700; cursor: pointer;">
+                    <i class="fab fa-google-drive"></i> 구글 드라이브
+                </button>
+            </div>
+
+            <!-- 탭 1: 로컬 파일 선택 -->
+            <div id="wpTabContentFile" style="display: flex; flex-direction: column; gap: 8px;">
+                <div onclick="document.getElementById('wpLocalFileInput').click()" style="border: 2px dashed rgba(192, 132, 252, 0.4); border-radius: 10px; padding: 20px; text-align: center; cursor: pointer; background: rgba(168, 85, 247, 0.05); transition: all 0.2s;">
+                    <i class="fas fa-cloud-upload-alt" style="font-size: 2rem; color: #c084fc; margin-bottom: 6px;"></i>
+                    <div style="font-size: 0.88rem; font-weight: 600;">클릭하여 이미지 파일 선택</div>
+                    <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 4px;">JPG, PNG, BMP 파일 지원</div>
+                </div>
+                <input type="file" id="wpLocalFileInput" accept="image/png, image/jpeg, image/jpg, image/bmp" style="display: none;" onchange="handleWpLocalFileSelected(event)">
+                <div id="wpLocalFileName" style="font-size: 0.78rem; color: #cbd5e1; word-break: break-all;"></div>
+            </div>
+
+            <!-- 탭 2: 구글 드라이브 링크 -->
+            <div id="wpTabContentGdrive" style="display: none; flex-direction: column; gap: 8px;">
+                <label style="font-size: 0.8rem; font-weight: 600; color: #cbd5e1;">구글 드라이브 공유 링크</label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="wpGdriveUrlInput" placeholder="https://drive.google.com/file/d/..." style="flex: 1; padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.3); color: #fff; font-size: 0.82rem;">
+                    <button type="button" class="btn btn-primary" onclick="fetchGdrivePreview()" id="btnFetchGdrive" style="white-space: nowrap; padding: 0 14px; font-weight: 700; font-size: 0.8rem;">
+                        <i class="fas fa-download"></i> 가져오기
+                    </button>
+                </div>
+                <div style="font-size: 0.72rem; color: #94a3b8; line-height: 1.4;">
+                    ※ 구글 드라이브에서 <b>[공유] → '링크가 있는 모든 사용자(뷰어)'</b>로 설정된 링크를 입력하세요.
+                </div>
+            </div>
+
+            <!-- 미리보기 박스 -->
+            <div id="wpPreviewContainer" style="display: none; flex-direction: column; gap: 6px;">
+                <span style="font-size: 0.75rem; font-weight: 600; color: #94a3b8;">이미지 미리보기</span>
+                <div style="width: 100%; height: 140px; background: #0f172a; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1);">
+                    <img id="wpPreviewImg" src="" alt="미리보기" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                </div>
+            </div>
+
+            <!-- 대상 및 액션 버튼 -->
+            <div style="background: rgba(0,0,0,0.2); padding: 9px 12px; border-radius: 8px; font-size: 0.78rem; display: flex; justify-content: space-between; align-items: center;">
+                <span>적용 대상:</span>
+                <b id="wpTargetDesc" style="color: #38bdf8;">모든 학생 PC (전체 24대)</b>
+            </div>
+
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px;">
+                <button type="button" class="btn btn-secondary" onclick="closeWallpaperModal()" style="padding: 8px 16px; font-size: 0.82rem;">취소</button>
+                <button type="button" class="btn btn-success" id="btnApplyWallpaper" onclick="applyWallpaperFinal()" style="padding: 8px 20px; font-weight: 800; font-size: 0.82rem; background: #9333ea; border-color: #a855f7;">
+                    <i class="fas fa-magic"></i> 바탕화면 적용
+                </button>
+            </div>
         </div>
     </div>
 
@@ -562,6 +642,217 @@
                 if (confirm('모든 학생 PC를 종료하시겠습니까?')) {
                     await sendCommand('all', 'shutdown');
                 }
+            }
+        }
+
+        let currentWpTab = 'file';
+        let selectedWpFile = null;
+        let currentWpUploadedUrl = null;
+
+        function triggerWallpaperUpload() {
+            const modal = document.getElementById('wallpaperModal');
+            if (!modal) return;
+            
+            const count = (typeof selectedStudents !== 'undefined' && selectedStudents.size) ? selectedStudents.size : 0;
+            const descEl = document.getElementById('wpTargetDesc');
+            if (descEl) {
+                descEl.innerText = count > 0 ? `선택된 ${count}대 학생 PC` : '모든 학생 PC (전체 24대)';
+            }
+
+            selectedWpFile = null;
+            currentWpUploadedUrl = null;
+            const fileInput = document.getElementById('wpLocalFileInput');
+            if (fileInput) fileInput.value = '';
+            const fileNameEl = document.getElementById('wpLocalFileName');
+            if (fileNameEl) fileNameEl.innerText = '';
+            const gdriveInput = document.getElementById('wpGdriveUrlInput');
+            if (gdriveInput) gdriveInput.value = '';
+            const previewContainer = document.getElementById('wpPreviewContainer');
+            if (previewContainer) previewContainer.style.display = 'none';
+
+            switchWpTab('file');
+            modal.style.display = 'flex';
+        }
+
+        function closeWallpaperModal() {
+            const modal = document.getElementById('wallpaperModal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function switchWpTab(tab) {
+            currentWpTab = tab;
+            const btnFile = document.getElementById('tabBtnFile');
+            const btnGdrive = document.getElementById('tabBtnGdrive');
+            const contentFile = document.getElementById('wpTabContentFile');
+            const contentGdrive = document.getElementById('wpTabContentGdrive');
+
+            if (tab === 'file') {
+                btnFile.classList.add('active');
+                btnGdrive.classList.remove('active');
+                contentFile.style.display = 'flex';
+                contentGdrive.style.display = 'none';
+            } else {
+                btnGdrive.classList.add('active');
+                btnFile.classList.remove('active');
+                contentGdrive.style.display = 'flex';
+                contentFile.style.display = 'none';
+            }
+        }
+
+        function handleWpLocalFileSelected(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            selectedWpFile = file;
+            currentWpUploadedUrl = null;
+
+            const fileNameEl = document.getElementById('wpLocalFileName');
+            if (fileNameEl) {
+                fileNameEl.innerText = `선택된 파일: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+            }
+
+            const previewContainer = document.getElementById('wpPreviewContainer');
+            const previewImg = document.getElementById('wpPreviewImg');
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImg.src = e.target.result;
+                previewContainer.style.display = 'flex';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function fetchGdrivePreview() {
+            const input = document.getElementById('wpGdriveUrlInput');
+            const url = input ? input.value.trim() : '';
+            if (!url) {
+                alert('구글 드라이브 공유 링크를 입력해주세요.');
+                return;
+            }
+
+            const btn = document.getElementById('btnFetchGdrive');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 가져오는 중...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/wallpaper/gdrive', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ url: url })
+                });
+                const data = await res.json();
+                if (data.status === 'success' && data.url) {
+                    currentWpUploadedUrl = data.url;
+                    selectedWpFile = null;
+                    const previewContainer = document.getElementById('wpPreviewContainer');
+                    const previewImg = document.getElementById('wpPreviewImg');
+                    previewImg.src = data.url;
+                    previewContainer.style.display = 'flex';
+                    alert('구글 드라이브에서 이미지를 성공적으로 가져왔습니다!');
+                } else {
+                    alert('가져오기 실패: ' + (data.message || '오류가 발생했습니다.'));
+                }
+            } catch (e) {
+                console.error(e);
+                alert('구글 드라이브 연결 중 오류가 발생했습니다.');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        async function applyWallpaperFinal() {
+            const count = (typeof selectedStudents !== 'undefined' && selectedStudents.size) ? selectedStudents.size : 0;
+            const targetDesc = count > 0 ? `선택된 ${count}대 학생 PC` : '모든 학생 PC';
+
+            let finalUrl = currentWpUploadedUrl;
+
+            if (currentWpTab === 'file') {
+                if (!selectedWpFile) {
+                    alert('먼저 적용할 이미지 파일을 선택해주세요.');
+                    return;
+                }
+                const applyBtn = document.getElementById('btnApplyWallpaper');
+                applyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 업로드 및 적용중...';
+                applyBtn.disabled = true;
+                try {
+                    const formData = new FormData();
+                    formData.append('file', selectedWpFile);
+                    const res = await fetch('/api/wallpaper/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success' && data.url) {
+                        finalUrl = data.url;
+                    } else {
+                        alert('이미지 업로드에 실패했습니다: ' + (data.message || '오류'));
+                        applyBtn.innerHTML = '<i class="fas fa-magic"></i> 바탕화면 적용';
+                        applyBtn.disabled = false;
+                        return;
+                    }
+                } catch (e) {
+                    alert('업로드 중 통신 오류가 발생했습니다.');
+                    applyBtn.innerHTML = '<i class="fas fa-magic"></i> 바탕화면 적용';
+                    applyBtn.disabled = false;
+                    return;
+                }
+            } else {
+                if (!finalUrl) {
+                    alert('먼저 구글 드라이브 링크를 입력하고 [가져오기] 버튼을 눌러주세요.');
+                    return;
+                }
+            }
+
+            if (!confirm(`${targetDesc}의 바탕화면을 이 이미지로 적용하시겠습니까?\n\n※ PC를 재부팅해도 교사가 [배경 복원]을 누를 때까지 영구 유지됩니다.`)) {
+                const applyBtn = document.getElementById('btnApplyWallpaper');
+                if (applyBtn) {
+                    applyBtn.innerHTML = '<i class="fas fa-magic"></i> 바탕화면 적용';
+                    applyBtn.disabled = false;
+                }
+                return;
+            }
+
+            try {
+                if (count > 0) {
+                    const targets = Array.from(selectedStudents);
+                    await Promise.all(targets.map(id => sendCommand(id, 'set_wallpaper', { url: finalUrl })));
+                    alert(`선택된 ${count}대 학생 PC에 새 바탕화면이 적용되었습니다.`);
+                } else {
+                    await sendCommand('all', 'set_wallpaper', { url: finalUrl });
+                    alert('모든 학생 PC에 새 바탕화면이 적용되었습니다.');
+                }
+                closeWallpaperModal();
+            } catch (e) {
+                console.error(e);
+                alert('배경화면 명령 전송 중 오류가 발생했습니다.');
+            } finally {
+                const applyBtn = document.getElementById('btnApplyWallpaper');
+                if (applyBtn) {
+                    applyBtn.innerHTML = '<i class="fas fa-magic"></i> 바탕화면 적용';
+                    applyBtn.disabled = false;
+                }
+            }
+        }
+
+        async function handleWallpaperResetClick() {
+            const count = (typeof selectedStudents !== 'undefined' && selectedStudents.size) ? selectedStudents.size : 0;
+            const targetDesc = count > 0 ? `선택된 ${count}대 학생 PC` : '모든 학생 PC';
+            const confirmMsg = `${targetDesc}의 바탕화면을 학생이 원래 사용하던 배경화면으로 복원하시겠습니까?`;
+
+            if (!confirm(confirmMsg)) return;
+
+            try {
+                if (count > 0) {
+                    const targets = Array.from(selectedStudents);
+                    await Promise.all(targets.map(id => sendCommand(id, 'reset_wallpaper')));
+                    alert(`선택된 ${count}대 학생 PC에 배경 복원 명령이 전송되었습니다.`);
+                } else {
+                    await sendCommand('all', 'reset_wallpaper');
+                    alert('모든 학생 PC에 배경 복원 명령이 전송되었습니다.');
+                }
+            } catch (err) {
+                console.error('[Wallpaper Reset Error]', err);
+                alert('배경 복원 중 오류가 발생했습니다.');
             }
         }
 

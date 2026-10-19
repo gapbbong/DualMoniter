@@ -3,7 +3,7 @@ import asyncio
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from typing import Dict
@@ -13,6 +13,8 @@ import json
 import time
 import socket
 import base64
+import requests
+import re
 
 IMAGE_DIR = "학생_화면_저장폴더"
 if not os.path.exists(IMAGE_DIR):
@@ -475,6 +477,96 @@ async def save_dashboard_capture(request: Request):
     except Exception as e:
         print(f"[Error] save_dashboard_capture: {e}")
         return {"status": "error", "message": str(e)}
+
+WALLPAPER_DIR = os.path.join("static", "wallpaper")
+if not os.path.exists(WALLPAPER_DIR):
+    os.makedirs(WALLPAPER_DIR, exist_ok=True)
+
+@app.post("/api/wallpaper/upload")
+async def upload_wallpaper(file: UploadFile = File(...)):
+    try:
+        os.makedirs(WALLPAPER_DIR, exist_ok=True)
+        ext = os.path.splitext(file.filename)[1].lower()
+        if not ext or ext not in (".jpg", ".jpeg", ".png", ".bmp"):
+            ext = ".jpg"
+        filename = f"current_wallpaper{ext}"
+        file_path = os.path.join(WALLPAPER_DIR, filename)
+
+        content = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
+
+        rel_url = f"/static/wallpaper/{filename}?t={int(time.time())}"
+        print(f"[{time.strftime('%H:%M:%S')}] [WALLPAPER] Uploaded: {filename} ({len(content)} bytes)")
+        return {"status": "success", "url": rel_url}
+    except Exception as e:
+        print(f"[Error] upload_wallpaper: {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+
+@app.post("/api/wallpaper/gdrive")
+async def gdrive_wallpaper(request: Request):
+    try:
+        data = await request.json()
+        gdrive_url = data.get("url", "").strip()
+        if not gdrive_url:
+            return JSONResponse(status_code=400, content={"status": "error", "message": "구글 드라이브 링크를 입력해주세요."})
+
+        m = re.search(r'(?:/file/d/|id=)([a-zA-Z0-9_-]{20,})', gdrive_url)
+        file_id = m.group(1) if m else gdrive_url
+
+        session = requests.Session()
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+
+        candidate_urls = [
+            f"https://drive.usercontent.google.com/download?id={file_id}&export=download",
+            f"https://drive.google.com/uc?export=download&id={file_id}",
+            f"https://lh3.googleusercontent.com/d/{file_id}"
+        ]
+
+        content = None
+        for u in candidate_urls:
+            try:
+                resp = session.get(u, headers=headers, timeout=15)
+                if resp.status_code == 200 and len(resp.content) > 1000 and b'<!DOCTYPE html>' not in resp.content[:150]:
+                    content = resp.content
+                    break
+            except Exception:
+                continue
+
+        if not content:
+            # Fallback with confirmation cookie (for larger files)
+            try:
+                resp = session.get(f"https://docs.google.com/uc?export=download&id={file_id}", headers=headers, timeout=15)
+                token = None
+                for key, value in resp.cookies.items():
+                    if key.startswith('download_warning'):
+                        token = value
+                        break
+                if token:
+                    resp = session.get(f"https://docs.google.com/uc?export=download&id={file_id}&confirm={token}", headers=headers, timeout=15)
+                    if resp.status_code == 200:
+                        content = resp.content
+            except Exception:
+                pass
+
+        if not content or len(content) < 1000 or b'<!DOCTYPE html>' in content[:150]:
+            return JSONResponse(status_code=400, content={
+                "status": "error", 
+                "message": "구글 드라이브에서 이미지를 가져올 수 없습니다. 링크 권한이 '링크가 있는 모든 사용자에게 공개(뷰어)'인지 확인해주세요."
+            })
+
+        os.makedirs(WALLPAPER_DIR, exist_ok=True)
+        filename = "current_wallpaper.jpg"
+        file_path = os.path.join(WALLPAPER_DIR, filename)
+        with open(file_path, "wb") as f:
+            f.write(content)
+
+        rel_url = f"/static/wallpaper/{filename}?t={int(time.time())}"
+        print(f"[{time.strftime('%H:%M:%S')}] [WALLPAPER] Downloaded from GDrive: {file_id} ({len(content)} bytes)")
+        return {"status": "success", "url": rel_url}
+    except Exception as e:
+        print(f"[Error] gdrive_wallpaper: {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
 if __name__ == "__main__":
     while True:

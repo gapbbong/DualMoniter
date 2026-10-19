@@ -353,6 +353,132 @@ def power_action(action):
     except Exception as e:
         print(f"[Error] power_action: {e}")
 
+# ===== 배경화면 원격 설정 및 복원 (Win32 API & Registry) =====
+SPI_SETDESKWALLPAPER = 20
+SPIF_UPDATEINIFILE = 0x01
+SPIF_SENDCHANGE = 0x02
+
+ORIG_WALLPAPER_BACKUP_DIR = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "CIM_AGENT")
+ORIG_WALLPAPER_FILE = os.path.join(ORIG_WALLPAPER_BACKUP_DIR, "orig_wallpaper_backup.jpg")
+ORIG_STYLE_FILE = os.path.join(ORIG_WALLPAPER_BACKUP_DIR, "orig_style.json")
+
+def backup_original_wallpaper_if_needed():
+    import winreg
+    import shutil
+    try:
+        os.makedirs(ORIG_WALLPAPER_BACKUP_DIR, exist_ok=True)
+        if os.path.exists(ORIG_WALLPAPER_FILE):
+            return
+
+        style = "10"
+        tile = "0"
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Desktop") as key:
+                style, _ = winreg.QueryValueEx(key, "WallpaperStyle")
+                tile, _ = winreg.QueryValueEx(key, "TileWallpaper")
+        except Exception:
+            pass
+        with open(ORIG_STYLE_FILE, "w", encoding="utf-8") as f:
+            json.dump({"style": str(style), "tile": str(tile)}, f)
+
+        backed_up = False
+        transcoded = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper")
+        if os.path.exists(transcoded) and os.path.getsize(transcoded) > 0:
+            shutil.copy2(transcoded, ORIG_WALLPAPER_FILE)
+            backed_up = True
+
+        if not backed_up:
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Desktop") as key:
+                    wp_path, _ = winreg.QueryValueEx(key, "Wallpaper")
+                    if wp_path and os.path.exists(wp_path):
+                        shutil.copy2(wp_path, ORIG_WALLPAPER_FILE)
+                        backed_up = True
+            except Exception:
+                pass
+
+        if backed_up:
+            log(f"[Wallpaper] Original wallpaper backed up to {ORIG_WALLPAPER_FILE}")
+        else:
+            log("[Wallpaper] No existing wallpaper found to backup")
+    except Exception as e:
+        log(f"[Wallpaper] Backup error: {e}")
+
+def set_windows_wallpaper_native(image_path: str, style: str = "10", tile: str = "0"):
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Desktop", 0, winreg.KEY_SET_VALUE) as key:
+            winreg.SetValueEx(key, "WallpaperStyle", 0, winreg.REG_SZ, str(style))
+            winreg.SetValueEx(key, "TileWallpaper", 0, winreg.REG_SZ, str(tile))
+    except Exception as e:
+        log(f"[Wallpaper] Registry error: {e}")
+
+    abs_path = os.path.abspath(image_path)
+    ret = ctypes.windll.user32.SystemParametersInfoW(
+        SPI_SETDESKWALLPAPER,
+        0,
+        abs_path,
+        SPIF_UPDATEINIFILE | SPIF_SENDCHANGE
+    )
+    return bool(ret)
+
+def download_and_apply_wallpaper(image_url: str):
+    try:
+        log(f"[Wallpaper] Applying new wallpaper from {image_url}")
+        backup_original_wallpaper_if_needed()
+
+        resp = requests.get(image_url, timeout=15)
+        if resp.status_code == 200:
+            os.makedirs(ORIG_WALLPAPER_BACKUP_DIR, exist_ok=True)
+            save_path = os.path.join(ORIG_WALLPAPER_BACKUP_DIR, "current_teacher_wallpaper.jpg")
+            with open(save_path, "wb") as f:
+                f.write(resp.content)
+
+            ok = set_windows_wallpaper_native(save_path, style="10", tile="0")
+            if ok:
+                log("WALLPAPER: New teacher wallpaper successfully applied")
+            else:
+                log("[Wallpaper] SystemParametersInfoW failed")
+        else:
+            log(f"[Wallpaper] Download failed, HTTP {resp.status_code}")
+    except Exception as e:
+        log(f"[Wallpaper] Apply error: {e}")
+
+def restore_original_wallpaper():
+    try:
+        log("[Wallpaper] Restoring original wallpaper...")
+        style = "10"
+        tile = "0"
+        if os.path.exists(ORIG_STYLE_FILE):
+            try:
+                with open(ORIG_STYLE_FILE, "r", encoding="utf-8") as f:
+                    st_data = json.load(f)
+                    style = st_data.get("style", "10")
+                    tile = st_data.get("tile", "0")
+            except Exception:
+                pass
+
+        if os.path.exists(ORIG_WALLPAPER_FILE):
+            ok = set_windows_wallpaper_native(ORIG_WALLPAPER_FILE, style=style, tile=tile)
+            if ok:
+                log("WALLPAPER: Original wallpaper restored successfully")
+                try:
+                    os.remove(ORIG_WALLPAPER_FILE)
+                    if os.path.exists(ORIG_STYLE_FILE):
+                        os.remove(ORIG_STYLE_FILE)
+                except Exception:
+                    pass
+                return
+
+        default_wp = r"C:\Windows\Web\Wallpaper\Windows\img0.jpg"
+        if os.path.exists(default_wp):
+            set_windows_wallpaper_native(default_wp, style="10", tile="0")
+            log("WALLPAPER: Restored to default Windows wallpaper")
+        else:
+            log("[Wallpaper] Nothing to restore")
+    except Exception as e:
+        log(f"[Wallpaper] Restore error: {e}")
+
 # ===== 원격 마우스/키보드 제어 (SendInput, 표준 win32 구조체) =====
 PUL = ctypes.POINTER(ctypes.c_ulong)
 
@@ -663,6 +789,13 @@ async def websocket_handler():
                         if vk:
                             send_key(int(vk), True)
                             send_key(int(vk), False)
+                    elif command == "set_wallpaper":
+                        rel_url = data.get("url")
+                        if rel_url:
+                            full_url = f"http://{SERVER_IP}:8888{rel_url}" if rel_url.startswith("/") else rel_url
+                            threading.Thread(target=download_and_apply_wallpaper, args=(full_url,), daemon=True).start()
+                    elif command == "reset_wallpaper":
+                        threading.Thread(target=restore_original_wallpaper, daemon=True).start()
         except Exception as e:
             print(f"\n[WS Error] {e}. Retrying in 5s...")
             await asyncio.sleep(5)
