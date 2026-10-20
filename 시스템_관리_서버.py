@@ -385,21 +385,6 @@ async def get_status():
                 "time": mtime_str,
                 "title": active_windows.get(client_id, "")
             }
-    # 추가로 업로드된 클라이언트 화면 자동 포함
-    try:
-        for fname in os.listdir(IMAGE_DIR):
-            if fname.startswith("screen_") and fname.endswith(".jpg"):
-                cid = fname[7:-4]
-                if cid not in status:
-                    fpath = os.path.join(IMAGE_DIR, fname)
-                    mtime = os.path.getmtime(fpath)
-                    status[cid] = {
-                        "online": (now - mtime) < 20,
-                        "time": time.strftime("%H:%M:%S", time.localtime(mtime)),
-                        "title": active_windows.get(cid, "")
-                    }
-    except Exception:
-        pass
     return JSONResponse(content=status)
 
 @app.get("/get_logs")
@@ -574,7 +559,20 @@ async def get_timeline(base_id: str):
     })
 
 @app.post("/upload_screen/{client_id}")
-async def upload_screen(client_id: str, title: str = "", idle_sec: int = 0, file: UploadFile = File(...)):
+async def upload_screen(client_id: str, request: Request, title: str = "", idle_sec: int = 0, file: UploadFile = File(...)):
+    prefix = get_room_prefix()
+    if not client_id.startswith(f"{prefix}-"):
+        try:
+            client_ip = request.client.host
+            last_num = int(client_ip.split(".")[-1])
+            pc_num = last_num - 10
+            if 1 <= pc_num <= 24:
+                suffix = "1"
+                if "-" in client_id:
+                    suffix = client_id.rsplit("-", 1)[1]
+                client_id = f"{prefix}-{pc_num:02d}-{suffix}"
+        except Exception:
+            pass
     file_path = os.path.join(IMAGE_DIR, f"screen_{client_id}.jpg")
     temp_path = os.path.join(IMAGE_DIR, f"temp_{client_id}.jpg")
     try:
