@@ -1,12 +1,25 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
     ['CIM_AGENT_LOADER.py'],
     pathex=[],
     binaries=[],
-    datas=[],
-    hiddenimports=[],
+    datas=[('FINAL_AGENT_PRO.py', '.')],
+    hiddenimports=[
+        'mss',
+        'PIL',
+        'PIL.Image',
+        'websockets',
+        'requests',
+        'urllib.request',
+        'asyncio',
+        'threading',
+        'ctypes',
+        'ctypes.wintypes',
+        'winreg',
+        'shutil',
+        'webbrowser'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -22,7 +35,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='CIM_AGENT_PRO',
+    name='02_학생용_모니터링_에이전트_전송용v3',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

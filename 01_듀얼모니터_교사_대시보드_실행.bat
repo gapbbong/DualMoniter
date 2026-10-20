@@ -12,7 +12,8 @@ echo [1/3] Checking libraries...
 python -m pip install "uvicorn[standard]" fastapi pyautogui requests websocket-client pillow python-multipart mss websockets openpyxl --quiet
 
 echo [2/3] Checking firewall (Port 8888)...
-powershell -Command "if (!(Get-NetFirewallRule -DisplayName 'CIM_PRO_SERVER' -ErrorAction SilentlyContinue)) { New-NetFirewallRule -DisplayName 'CIM_PRO_SERVER' -Direction Inbound -LocalPort 8888 -Protocol TCP -Action Allow }" >nul 2>&1
+powershell -Command "if (!(Get-NetFirewallRule -DisplayName 'CIM_PRO_SERVER' -ErrorAction SilentlyContinue)) { New-NetFirewallRule -DisplayName 'CIM_PRO_SERVER' -Direction Inbound -LocalPort 8888 -Protocol TCP -Action Allow }" >nul 2>&1
+powershell -Command "if (!(Get-NetFirewallRule -DisplayName 'CIM_PRO_DISCOVERY' -ErrorAction SilentlyContinue)) { New-NetFirewallRule -DisplayName 'CIM_PRO_DISCOVERY' -Direction Inbound -LocalPort 8889 -Protocol UDP -Action Allow }" >nul 2>&1
 
 :: Get active local IP address dynamically using PowerShell (pipeless for CMD safety)
 for /f "tokens=*" %%i in ('powershell -NoProfile -Command "$r = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue; if ($r) { $int = Get-NetIPInterface -InterfaceIndex $r[0].InterfaceIndex -ErrorAction SilentlyContinue; if ($int) { $ips = Get-NetIPAddress -InterfaceIndex $int[0].InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue; if ($ips) { $ips[0].IPAddress; exit } } }; $ips = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue; foreach ($ip in $ips) { if (-not $ip.IPAddress.StartsWith('127.') -and -not $ip.IPAddress.StartsWith('169.254.')) { $ip.IPAddress; exit } }"') do set "SERVER_IP=%%i"

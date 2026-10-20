@@ -627,9 +627,66 @@ SERVER_IP = "10.128.56.41"
 SERVER_URL = f"http://{SERVER_IP}:8888"
 WS_URL = f"ws://{SERVER_IP}:8888/ws"
 
+def get_my_room_prefix():
+    """학생 PC 컴퓨터 이름에서 실습실 번호 추출 (예: 201-05 -> 201)"""
+    try:
+        hn = socket.gethostname()
+        parts = hn.split("-")
+        if len(parts) >= 2 and parts[0].isdigit():
+            return parts[0]
+    except Exception:
+        pass
+    return ""
+
+def discover_teacher_server(timeout=1.5):
+    """LAN UDP 브로드캐스트로 교사 서버 IP 자동 탐색 (Zero-Config)"""
+    my_room = get_my_room_prefix()
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.settimeout(timeout)
+
+        discover_msg = f"CIM_DISCOVER|{my_room}".encode("utf-8")
+        try:
+            sock.sendto(discover_msg, ("255.255.255.255", 8889))
+        except Exception:
+            pass
+
+        start_t = time.time()
+        fallback_ip = None
+        while time.time() - start_t < timeout:
+            try:
+                data, addr = sock.recvfrom(1024)
+                text = data.decode("utf-8", errors="ignore").strip()
+                if text.startswith("CIM_RESPONSE|") or text.startswith("CIM_BEACON|"):
+                    parts = text.split("|")
+                    if len(parts) >= 2 and parts[1]:
+                        teacher_ip = parts[1].strip()
+                        teacher_room = parts[3].strip() if len(parts) >= 4 else ""
+
+                        if my_room and teacher_room:
+                            if my_room == teacher_room:
+                                sock.close()
+                                return teacher_ip
+                            else:
+                                continue
+                        else:
+                            fallback_ip = teacher_ip
+            except socket.timeout:
+                break
+            except Exception:
+                break
+        sock.close()
+        if fallback_ip:
+            return fallback_ip
+    except Exception:
+        pass
+    return None
+
 def resolve_server_ip():
     global SERVER_IP, SERVER_URL, WS_URL
-    # 1. Check for server_ip.txt
+    # 1. 수동 지정 파일이 있을 경우 최우선
     if os.path.exists("server_ip.txt"):
         try:
             with open("server_ip.txt", "r", encoding="utf-8") as f:
@@ -643,8 +700,19 @@ def resolve_server_ip():
         except:
             pass
 
-    # 2. Try connection to default hardcoded IP
-    print(f"[IP] Using default server IP: {SERVER_IP}")
+    # 2. LAN 자동 탐색 시도
+    auto_ip = discover_teacher_server(timeout=1.5)
+    if auto_ip:
+        SERVER_IP = auto_ip
+        SERVER_URL = f"http://{SERVER_IP}:8888"
+        WS_URL = f"ws://{SERVER_IP}:8888/ws"
+        print(f"[IP] Teacher server auto-discovered: {SERVER_IP}")
+        return
+
+    # 3. 기본값 / 캐시 IP 유지
+    SERVER_URL = f"http://{SERVER_IP}:8888"
+    WS_URL = f"ws://{SERVER_IP}:8888/ws"
+    print(f"[IP] Using fallback server IP: {SERVER_IP}")
 
 hostname = socket.gethostname()
 CLIENT_ID = hostname # 201-XX 형식을 그대로 사용합니다.
@@ -768,9 +836,16 @@ def capture_and_send():
                                    files={"file": ("s.jpg", buf.getvalue(), "image/jpeg")}, timeout=3)
                 
                 print(f"\r[{time.strftime('%H:%M:%S')}] Screen sent (Monitors: {len(monitors)-1})", end="", flush=True)
+                time.sleep(1.0)
             except Exception as e:
-                print(f"\n[Error] Capture: {e}")
-            time.sleep(1.0)
+                if not os.path.exists("server_ip.txt"):
+                    auto_ip = discover_teacher_server(timeout=0.5)
+                    if auto_ip and auto_ip != SERVER_IP:
+                        SERVER_IP = auto_ip
+                        SERVER_URL = f"http://{SERVER_IP}:8888"
+                        WS_URL = f"ws://{SERVER_IP}:8888/ws"
+                        print(f"\n[Discovery] Found teacher server at: {SERVER_IP}")
+                time.sleep(2.0)
 
 async def websocket_handler():
     while True:
@@ -886,23 +961,15 @@ def run():
     # 서버 IP 동적 감지
     resolve_server_ip()
 
-    # 서버 연결 대기
-    print(f"Connecting to {SERVER_URL}...")
-    for _ in range(10):
-        try:
-            requests.get(SERVER_URL, timeout=3)
-            break
-        except: time.sleep(3)
+    log(f"Agent started (Target Server: {SERVER_URL})")
 
-    log(f"Agent started (Dual-Monitor Ready)")
-    
-    # 웹소켓 리스너 시작
+    # 웹소켓 리스너 시작 (서버 대기 무한 재시도)
     threading.Thread(target=start_ws_loop, daemon=True).start()
 
-    # 프로세스 수집/차단 감시 시작
+    # 프로세스 수집/차단 감시 시작 (서버 대기 무한 재시도)
     threading.Thread(target=process_watch_loop, daemon=True).start()
 
-    # 화면 전송 시작
+    # 화면 전송 시작 (서버 켜지면 즉각 화면 전송)
     capture_and_send()
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 import sys
 import asyncio
+import threading
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
@@ -143,22 +144,49 @@ async def receive_log(client_id: str, request: Request):
     return {"status": "success"}
 
 def get_room_prefix():
+    # 1. room_config.txt 파일이 있으면 우선 사용 (예: prefix=204 또는 204)
+    if os.path.exists("room_config.txt"):
+        try:
+            with open("room_config.txt", "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "prefix=" in line:
+                        return line.split("prefix=")[1].strip()
+                    elif line and not line.startswith("#") and not "=" in line:
+                        return line
+        except: pass
+
+    # 2. 교사 PC 컴퓨터 이름에서 자동 추출 (예: 204-TEACHER -> 204)
     try:
         hn = socket.gethostname()
         parts = hn.split("-")
         if len(parts) >= 2 and parts[0].isdigit():
             return parts[0]
-    except:
-        pass
-    return "203" # Fallback to 203
+    except: pass
+
+    return "203" # 기본값
 
 def load_student_names():
     names_map = {}
     try:
         import openpyxl
-        xlsx_path = "3-5반.xlsx"
-        if os.path.exists(xlsx_path):
-            wb = openpyxl.load_workbook(xlsx_path, data_only=True)
+        # 1. room_config.txt에 지정된 엑셀 파일명 확인 (예: excel=2-1반.xlsx)
+        target_xlsx = None
+        if os.path.exists("room_config.txt"):
+            try:
+                with open("room_config.txt", "r", encoding="utf-8") as f:
+                    for line in f:
+                        if "excel=" in line:
+                            target_xlsx = line.split("excel=")[1].strip()
+            except: pass
+
+        if not target_xlsx or not os.path.exists(target_xlsx):
+            # 2. 폴더 내의 첫 번째 .xlsx 파일 자동 탐색 (또는 3-5반.xlsx)
+            xlsx_files = [f for f in os.listdir(".") if f.endswith(".xlsx") and not f.startswith("~")]
+            target_xlsx = xlsx_files[0] if xlsx_files else "3-5반.xlsx"
+
+        if target_xlsx and os.path.exists(target_xlsx):
+            wb = openpyxl.load_workbook(target_xlsx, data_only=True)
             sheet = wb.active
             for r in range(2, sheet.max_row + 1):
                 pc_val = sheet.cell(row=r, column=1).value
@@ -170,6 +198,77 @@ def load_student_names():
     except Exception as e:
         print(f"[Error] Failed to load student names: {e}")
     return names_map
+
+
+def get_local_server_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        pass
+    try:
+        ips = socket.gethostbyname_ex(socket.gethostname())[2]
+        for ip in ips:
+            if not ip.startswith("127.") and not ip.startswith("169.254."):
+                return ip
+    except Exception:
+        pass
+    return "127.0.0.1"
+
+DISCOVERY_PORT = 8889
+
+def start_discovery_server():
+    def discovery_worker():
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        try:
+            sock.bind(("", DISCOVERY_PORT))
+        except Exception as e:
+            print(f"[Discovery] Port {DISCOVERY_PORT} bind warning: {e}")
+            return
+
+        sock.settimeout(1.0)
+        last_beacon = 0
+
+        while True:
+            now = time.time()
+            server_ip = get_local_server_ip()
+            prefix = get_room_prefix()
+
+            # 3초마다 LAN 브로드캐스트 비콘 전송
+            if now - last_beacon > 3.0:
+                last_beacon = now
+                beacon_msg = f"CIM_BEACON|{server_ip}|8888|{prefix}".encode("utf-8")
+                try:
+                    sock.sendto(beacon_msg, ("255.255.255.255", DISCOVERY_PORT))
+                except Exception:
+                    pass
+
+            # 학생 PC의 탐색 요청(DISCOVER) 수신 시 즉각 응답
+            try:
+                data, addr = sock.recvfrom(1024)
+                text = data.decode("utf-8", errors="ignore").strip()
+                if text.startswith("CIM_DISCOVER"):
+                    req_parts = text.split("|")
+                    req_room = req_parts[1].strip() if len(req_parts) >= 2 else ""
+                    # 요청한 실습실 번호가 있고 현재 교사 실습실과 다르면 다른 교실이므로 무시
+                    if req_room and prefix and req_room != prefix:
+                        pass
+                    else:
+                        resp_msg = f"CIM_RESPONSE|{server_ip}|8888|{prefix}".encode("utf-8")
+                        sock.sendto(resp_msg, addr)
+            except socket.timeout:
+                pass
+            except Exception:
+                pass
+
+    t = threading.Thread(target=discovery_worker, daemon=True)
+    t.start()
+    print("[Discovery] LAN Zero-Config Auto-Discovery service running on UDP 8889")
 
 @app.get("/get_config")
 async def get_config():
@@ -707,6 +806,8 @@ async def submit_assignment(client_id: str = Form(...), files: List[UploadFile] 
 @app.get("/api/assignment/status")
 async def get_assignment_status():
     return JSONResponse(content=assignment_state)
+
+start_discovery_server()
 
 if __name__ == "__main__":
     while True:
