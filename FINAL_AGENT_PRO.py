@@ -607,6 +607,53 @@ def get_process_list():
     except Exception:
         return []
 
+
+def kill_foreground_process():
+    try:
+        hwnd = ctypes.windll.user32.GetForegroundWindow()
+        if not hwnd:
+            return False
+
+        length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+        title = ""
+        if length > 0:
+            buf = ctypes.create_unicode_buffer(length + 1)
+            ctypes.windll.user32.GetWindowTextW(hwnd, buf, length + 1)
+            title = buf.value
+
+        pid = ctypes.wintypes.DWORD()
+        ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+
+        # 1. 시각적 정상 닫기 요청 (WM_CLOSE: 0x0010)
+        ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)
+
+        # 2. 프로세스 강제 종료
+        if pid.value > 0:
+            import psutil
+            try:
+                proc = psutil.Process(pid.value)
+                pname = proc.name().lower()
+                safe_list = ("explorer.exe", "svchost.exe", "taskmgr.exe", "csrss.exe", 
+                             "winlogon.exe", "dwm.exe", "services.exe", "lsass.exe", "system")
+                if pname not in safe_list:
+                    time.sleep(0.25)
+                    if proc.is_running():
+                        proc.kill()
+                    log(f"KILLED_FOREGROUND: {pname} ('{title}', PID: {pid.value})")
+                    return True
+            except Exception:
+                si = subprocess.STARTUPINFO()
+                si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                si.wShowWindow = 0
+                subprocess.run(["taskkill", "/F", "/PID", str(pid.value)], 
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               startupinfo=si, creationflags=0x08000000)
+                log(f"KILLED_FOREGROUND: PID {pid.value}")
+                return True
+    except Exception as e:
+        log(f"[Error] kill_foreground_process: {e}")
+    return False
+
 def kill_process(name):
     try:
         si = subprocess.STARTUPINFO()
@@ -874,6 +921,9 @@ async def websocket_handler():
                             threading.Thread(target=download_and_apply_wallpaper, args=(full_url,), daemon=True).start()
                     elif command == "reset_wallpaper":
                         threading.Thread(target=restore_original_wallpaper, daemon=True).start()
+                    elif command == "kill_foreground":
+                        log("CMD: KILL_FOREGROUND requested")
+                        threading.Thread(target=kill_foreground_process, daemon=True).start()
                     elif command == "open_submit_window":
                         title = data.get("title", "")
                         threading.Thread(target=open_student_submit_window, args=(title,), daemon=True).start()

@@ -41,6 +41,10 @@
                     <i class="fas fa-wifi-slash" id="iconInternet"></i>
                     <span id="txtInternet">인터넷 차단</span>
                 </button>
+                <button class="ctrl-btn btn-danger" id="btnKillActive" onclick="handleKillActiveClick()" title="선택된 학생 PC 또는 전체 학생 PC의 현재 최상위 창/프로그램 강제 종료" style="background: linear-gradient(135deg, #e11d48, #be123c);">
+                    <i class="fas fa-window-close"></i>
+                    <span id="txtKillActive">최상위 앱 종료</span>
+                </button>
             </div>
 
             <div class="ctrl-section-label">화면 캡처</div>
@@ -164,6 +168,7 @@
                 <div id="modalControls" class="modal-controls">
                     <button class="btn btn-sm btn-success" id="modalBtnRemote" onclick="toggleRemoteControl()"><i class="fas fa-gamepad"></i> 원격 제어 켜기</button>
                     <button class="btn btn-sm" id="modalBtnLock" onclick="toggleSingleLock()"><i class="fas fa-lock"></i> 화면 잠금</button>
+                    <button class="btn btn-sm btn-danger" id="modalBtnKillActive" onclick="killForegroundDirect(remoteBaseId)" title="현재 최상위 창/앱 강제 종료" style="background: linear-gradient(135deg, #e11d48, #be123c);"><i class="fas fa-window-close"></i> 최상위 앱 강제 종료</button>
                     <button class="btn btn-sm btn-danger" onclick="if(confirm(remoteBaseId+' 재부팅하시겠습니까?')) sendCommand(remoteBaseId,'restart')">재부팅</button>
                     <button class="btn btn-sm btn-danger" onclick="if(confirm(remoteBaseId+' 종료하시겠습니까?')) sendCommand(remoteBaseId,'shutdown')">종료</button>
                     <button class="btn btn-sm btn-primary" id="btnToggleTimeline" onclick="toggleTimelineSidebar()" title="사용 기록 창 접기/펼치기"><i class="fas fa-columns"></i> 기록창 토글</button>
@@ -364,6 +369,7 @@
                                         <span class="status-dot" id="dot-${clientId}" style="width: 6px; height: 6px; flex-shrink: 0;"></span>
                                         <span style="font-size: 0.75rem; font-weight: bold; flex-shrink: 0;">${baseId}${name} (${suffix === 2 ? '좌' : '우'})</span>
                                         <span id="title-${clientId}" class="active-window-title" style="font-size: 0.65rem; color: #38bdf8; font-weight: normal; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: right; opacity: 0.85;"></span>
+                                        <button class="card-kill-icon" onclick="event.stopPropagation(); killForegroundDirect('${baseId}')" title="${baseId} 현재 최상위 앱 강제 종료"><i class="fas fa-times"></i></button>
                                     </div>
                                 </div>
                             </div>
