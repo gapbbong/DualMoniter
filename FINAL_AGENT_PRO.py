@@ -767,40 +767,19 @@ def run_full_diagnostics():
     log("STEP5_SUCCESS")
 
 def capture_and_send():
+    global SERVER_URL, SERVER_IP, WS_URL
     import hashlib
     import urllib.parse
-    last_update_check = 0
-    update_interval = 60  # 60초마다 서버의 파일 변경 사항 확인 (트래픽 최소화)
+    last_update_check = time.time()  # 시작하자마자 재시작 루프에 빠지는 것 방지
+    update_interval = 60
+    
+    # 실행 파일 디렉터리 기준 절대 경로
+    exe_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    local_agent_path = os.path.join(exe_dir, "FINAL_AGENT_PRO.py")
     
     with mss.mss() as sct:
         while True:
-            current_time = time.time()
-            if current_time - last_update_check > update_interval:
-                last_update_check = current_time
-                try:
-                    # 1. 로컬에 저장된 에이전트 소스 파일의 MD5 해시값 계산
-                    local_hash = ""
-                    if os.path.exists("FINAL_AGENT_PRO.py"):
-                        with open("FINAL_AGENT_PRO.py", "rb") as f:
-                            local_hash = hashlib.md5(f.read()).hexdigest()
-                    
-                    # 2. 서버에 이 해시값 전달하여 최신 파일이 있는지 확인
-                    res = requests.get(f"{SERVER_URL}/check_update?hash={local_hash}", timeout=3)
-                    if res.status_code == 200 and res.json().get("update_needed"):
-                        log("[UPDATE] New agent code version detected. Downloading latest code...")
-                        dl = requests.get(f"{SERVER_URL}/download_agent", timeout=5)
-                        if dl.status_code == 200 and b"def run():" in dl.content:
-                            with open("FINAL_AGENT_PRO.py", "wb") as f:
-                                f.write(dl.content)
-                            log("[UPDATE] Code updated successfully. Reloading process...")
-                            import subprocess
-                            si = subprocess.STARTUPINFO()
-                            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                            si.wShowWindow = 0
-                            subprocess.Popen([sys.executable] + sys.argv[1:], startupinfo=si, creationflags=0x08000000)
-                            os._exit(0)
-                except Exception as e:
-                    print(f"\n[Loader] Update check failed: {e}")
+            # 화면 캡처 전송 안정화 루프
 
             # 현재 활성화된 창 이름 가져오기 (Windows API)
             active_title = ""
@@ -838,6 +817,8 @@ def capture_and_send():
                 print(f"\r[{time.strftime('%H:%M:%S')}] Screen sent (Monitors: {len(monitors)-1})", end="", flush=True)
                 time.sleep(1.0)
             except Exception as e:
+                try: log(f"[Capture Error] {e}")
+                except: pass
                 if not os.path.exists("server_ip.txt"):
                     auto_ip = discover_teacher_server(timeout=0.5)
                     if auto_ip and auto_ip != SERVER_IP:

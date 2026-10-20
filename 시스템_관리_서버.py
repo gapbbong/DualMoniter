@@ -2,7 +2,105 @@ import sys
 import asyncio
 import threading
 if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    import asyncio.proactor_events
+    import asyncio.windows_events
+    import asyncio.trsock
+    from asyncio import exceptions, tasks
+    import _overlapped
+    import struct
+    import socket
+
+    # Patch 1: IocpProactor.accept - handle client disconnection during handshake
+    _orig_accept = asyncio.windows_events.IocpProactor.accept
+    def _safe_accept(self, listener):
+        self._register_with_iocp(listener)
+        conn = self._get_accept_socket(listener.family)
+        ov = _overlapped.Overlapped(asyncio.windows_events.NULL)
+        ov.AcceptEx(listener.fileno(), conn.fileno())
+
+        def finish_accept(trans, key, ov):
+            ov.getresult()
+            buf = struct.pack('@P', listener.fileno())
+            conn.setsockopt(socket.SOL_SOCKET, _overlapped.SO_UPDATE_ACCEPT_CONTEXT, buf)
+            conn.settimeout(listener.gettimeout())
+            return conn, conn.getpeername()
+
+        async def accept_coro(future, conn):
+            try:
+                await future
+            except (exceptions.CancelledError, OSError):
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+                if not isinstance(sys.exc_info()[1], OSError):
+                    raise
+
+        future = self._register(ov, listener, finish_accept)
+        coro = accept_coro(future, conn)
+        tasks.ensure_future(coro, loop=self._loop)
+        return future
+
+    asyncio.windows_events.IocpProactor.accept = _safe_accept
+
+    # Patch 2: BaseProactorEventLoop._start_serving - prevent server socket closure on client transient resets
+    _orig_start_serving = asyncio.proactor_events.BaseProactorEventLoop._start_serving
+
+    def _safe_start_serving(self, protocol_factory, sock,
+                            sslcontext=None, server=None, backlog=100,
+                            ssl_handshake_timeout=None,
+                            ssl_shutdown_timeout=None):
+        def loop(f=None):
+            try:
+                if f is not None:
+                    try:
+                        conn, addr = f.result()
+                    except OSError as exc:
+                        if getattr(exc, 'winerror', None) in (64, 121, 995, 1225, 10054) or getattr(exc, 'errno', None) in (64, 121, 995, 1225, 10054):
+                            if not self.is_closed() and sock.fileno() != -1:
+                                f = self._proactor.accept(sock)
+                                self._accept_futures[sock.fileno()] = f
+                                f.add_done_callback(loop)
+                            return
+                        raise
+                    if self._debug:
+                        asyncio.proactor_events.logger.debug("%r got a new connection from %r: %r",
+                                     server, addr, conn)
+                    protocol = protocol_factory()
+                    if sslcontext is not None:
+                        self._make_ssl_transport(
+                            conn, protocol, sslcontext, server_side=True,
+                            extra={'peername': addr}, server=server,
+                            ssl_handshake_timeout=ssl_handshake_timeout,
+                            ssl_shutdown_timeout=ssl_shutdown_timeout)
+                    else:
+                        self._make_socket_transport(
+                            conn, protocol,
+                            extra={'peername': addr}, server=server)
+                if self.is_closed():
+                    return
+                f = self._proactor.accept(sock)
+            except OSError as exc:
+                if sock.fileno() != -1:
+                    self.call_exception_handler({
+                        'message': 'Accept failed on a socket',
+                        'exception': exc,
+                        'socket': asyncio.trsock.TransportSocket(sock),
+                    })
+                    sock.close()
+                elif self._debug:
+                    asyncio.proactor_events.logger.debug("Accept failed on socket %r",
+                                 sock, exc_info=True)
+            except asyncio.exceptions.CancelledError:
+                sock.close()
+            else:
+                self._accept_futures[sock.fileno()] = f
+                f.add_done_callback(loop)
+
+        self.call_soon(loop)
+
+    asyncio.proactor_events.BaseProactorEventLoop._start_serving = _safe_start_serving
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Request
 from fastapi.staticfiles import StaticFiles
@@ -92,25 +190,12 @@ async def check_update(hash: str = ""):
         with open(agent_path, "rb") as f:
             raw_bytes = f.read()
             server_hash = hashlib.md5(raw_bytes).hexdigest()
-        
-        # Windows 텍스트 저장 시 변환된 클라이언트 해시 대응
-        win_hash = hashlib.md5(raw_bytes.decode('utf-8', errors='ignore').replace('\n', '\r\n').encode('utf-8')).hexdigest()
-        valid_hashes = {server_hash, win_hash}
-
+        win_hash = hashlib.md5(raw_bytes.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")).hexdigest()
+        unix_hash = hashlib.md5(raw_bytes.replace(b"\r\n", b"\n")).hexdigest()
+        valid_hashes = {server_hash, win_hash, unix_hash}
         needed = (hash not in valid_hashes)
-        if needed:
-            print(f"[CheckUpdate] Client hash mismatch (client: {hash[:8]}... != server: {server_hash[:8]}...) -> update_needed=True")
-            try:
-                with open(LOG_HISTORY_FILE, "r+", encoding="utf-8") as lf:
-                    logs = json.load(lf)
-                    logs.insert(0, f"[{time.strftime('%H:%M:%S')}] [SERVER] Update requested by client (hash {hash[:8]} != {server_hash[:8]})")
-                    lf.seek(0)
-                    json.dump(logs[:50], lf, ensure_ascii=False)
-                    lf.truncate()
-            except: pass
         return {"update_needed": needed}
-    except Exception as e:
-        print(f"[CheckUpdate] Error: {e}")
+    except:
         return {"update_needed": False}
 
 @app.websocket("/ws/{client_id}")
@@ -282,20 +367,17 @@ active_windows: Dict[str, str] = {}
 async def get_status():
     prefix = get_room_prefix()
     status = {}
-    # 현재 활성 웹소켓 기준으로 온라인 상태 판단
+    now = time.time()
     for i in range(1, 25):
         base_id = f"{prefix}-{i:02d}"
         for suffix in ["1", "2"]:
             client_id = f"{base_id}-{suffix}"
             file_path = os.path.join(IMAGE_DIR, f"screen_{client_id}.jpg")
-            
-            # 실제 웹소켓은 base_id(PC) 단위로 연결되지만 상태는 개별 화면 단위로 관리 가능
-            # 여기서는 파일 수정 시간으로 보조 판단
             is_online = False
             mtime_str = "-"
             if os.path.exists(file_path):
                 mtime = os.path.getmtime(file_path)
-                is_online = (time.time() - mtime) < 15
+                is_online = (now - mtime) < 20
                 mtime_str = time.strftime("%H:%M:%S", time.localtime(mtime))
             
             status[client_id] = {
@@ -303,6 +385,21 @@ async def get_status():
                 "time": mtime_str,
                 "title": active_windows.get(client_id, "")
             }
+    # 추가로 업로드된 클라이언트 화면 자동 포함
+    try:
+        for fname in os.listdir(IMAGE_DIR):
+            if fname.startswith("screen_") and fname.endswith(".jpg"):
+                cid = fname[7:-4]
+                if cid not in status:
+                    fpath = os.path.join(IMAGE_DIR, fname)
+                    mtime = os.path.getmtime(fpath)
+                    status[cid] = {
+                        "online": (now - mtime) < 20,
+                        "time": time.strftime("%H:%M:%S", time.localtime(mtime)),
+                        "title": active_windows.get(cid, "")
+                    }
+    except Exception:
+        pass
     return JSONResponse(content=status)
 
 @app.get("/get_logs")
@@ -809,12 +906,27 @@ async def get_assignment_status():
 
 start_discovery_server()
 
+def open_browser_when_ready():
+    for _ in range(60):
+        time.sleep(0.1)
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.3)
+            s.connect(("127.0.0.1", 8888))
+            s.close()
+            import webbrowser
+            webbrowser.open("http://localhost:8888")
+            break
+        except Exception:
+            pass
+
 if __name__ == "__main__":
+    threading.Thread(target=open_browser_when_ready, daemon=True).start()
     while True:
         try:
             if sys.platform == "win32":
-                asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-            uvicorn.run(app, host="0.0.0.0", port=8888, access_log=False, loop="none")
+                asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+            uvicorn.run(app, host="0.0.0.0", port=8888, access_log=False, loop="asyncio")
         except Exception as e:
             print(f"[Server Crash Recovery] {e}. Restarting server in 1s...")
             time.sleep(1)
