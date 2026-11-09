@@ -674,6 +674,9 @@ SERVER_IP = "10.128.56.41"
 SERVER_URL = f"http://{SERVER_IP}:8888"
 WS_URL = f"ws://{SERVER_IP}:8888/ws"
 
+# 실습실 번호(컴퓨터 이름 접두사)별 교사 PC IP
+ROOM_SERVER_IPS = {"201": "10.128.56.41", "203": "10.128.56.191"}
+
 def get_my_room_prefix():
     """학생 PC 컴퓨터 이름에서 실습실 번호 추출 (예: 201-05 -> 201)"""
     try:
@@ -746,6 +749,14 @@ def resolve_server_ip():
                     return
         except:
             pass
+
+    # 1-2. 실습실 번호별 고정 IP
+    room_ip = ROOM_SERVER_IPS.get(get_my_room_prefix())
+    if room_ip:
+        SERVER_IP = room_ip
+        SERVER_URL = f"http://{SERVER_IP}:8888"
+        WS_URL = f"ws://{SERVER_IP}:8888/ws"
+        return
 
     # 2. LAN 자동 탐색 시도
     auto_ip = discover_teacher_server(timeout=1.5)
@@ -973,15 +984,25 @@ def process_watch_loop():
         time.sleep(2)
 
 def cleanup_previous_agents():
+    """이전 버전 에이전트(02_학생*, CIM_AGENT*) 프로세스 정리 (자기 자신/부모 부트로더 제외)"""
     try:
-        my_pid = os.getpid()
-        si = subprocess.STARTUPINFO()
-        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        si.wShowWindow = 0
-        cf = 0x08000000
-        ps_cmd = f"Get-Process -Name '02_학생용*', 'CIM_AGENT*' -ErrorAction SilentlyContinue | Where-Object {{ $_.Id -ne {my_pid} }} | Stop-Process -Force"
-        subprocess.run(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_cmd],
-                       startupinfo=si, creationflags=cf, timeout=5)
+        import psutil
+        me = psutil.Process(os.getpid())
+        keep = {me.pid}
+        try:
+            keep.add(me.parent().pid)
+        except Exception:
+            pass
+        for p in psutil.process_iter(['pid', 'name']):
+            try:
+                n = (p.info['name'] or '')
+                if p.info['pid'] in keep:
+                    continue
+                if n.startswith('02_학생') or n.upper().startswith('CIM_AGENT'):
+                    p.kill()
+                    log(f"[CLEANUP] Killed previous agent: {n} (PID {p.info['pid']})")
+            except Exception:
+                pass
     except Exception:
         pass
 
